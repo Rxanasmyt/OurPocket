@@ -22,7 +22,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.14.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.15.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -269,6 +269,34 @@
         .privacy .money { filter: blur(9px); }
         @keyframes wiggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-6deg); } 40% { transform: rotate(6deg); } 60% { transform: rotate(-4deg); } 80% { transform: rotate(3deg); } }
         .wiggle { animation: wiggle 0.7s var(--ease-standard); display: inline-block; }
+        /* ===== v3: ท่าทางมีแรงเฉื่อย / กดค้างเพื่อเปิดเมนู / ข้อมูลสดจากอีกเครื่อง ===== */
+        .swipe-row .row-card { -webkit-touch-callout: none; }
+        .row-card.pressing { transform: scale(0.965); transition: transform 0.35s var(--ease-emph); }
+        @keyframes liveTint { 0%, 55% { background: #fff1f4; } 100% { background: #fff; } }
+        @keyframes liveBadge { 0% { opacity: 0; transform: translateY(6px) scale(0.8); } 15% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
+        .live-flash .row-card { animation: liveTint 2.4s ease-out; }
+        .live-flash::after { content: "ใหม่"; position: absolute; top: -7px; right: 12px; z-index: 3; padding: 1px 9px; border-radius: 999px; background: #ff4d6d; color: #fff; font-size: 10px; font-weight: 700; box-shadow: 0 4px 10px -3px rgba(255, 77, 109, 0.6); animation: liveBadge 3.2s ease-out forwards; pointer-events: none; }
+        .menu-item { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.9rem 1rem; border-radius: 1rem; background: #f9fafb; font-weight: 600; color: #374151; text-align: left; }
+        .menu-item.danger { color: #dc2626; background: #fef2f2; }
+        .menu-item[disabled] { opacity: 0.45; }
+        #rowMenuBody > * { animation: fieldIn 0.45s var(--ease-emph) backwards; }
+        #rowMenuBody > :nth-child(2) { animation-delay: 0.04s; } #rowMenuBody > :nth-child(3) { animation-delay: 0.08s; } #rowMenuBody > :nth-child(4) { animation-delay: 0.12s; }
+        /* โครงกระดูกระหว่างรอข้อมูลครั้งแรก */
+        .skeleton { border-radius: 1rem; background: linear-gradient(90deg, #f3f4f6 25%, #ffffff 37%, #f3f4f6 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
+        @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+        /* แสงในการ์ดยอดเงินขยับตามนิ้ว/เมาส์ (ใช้ property translate แยกจาก transform ที่กำลังเคลื่อนไหว) */
+        .hero-aurora::before { translate: calc(var(--px, 0) * -28px) calc(var(--py, 0) * -18px); transition: translate 0.8s var(--ease-emph); }
+        .hero-aurora::after { translate: calc(var(--px, 0) * 24px) calc(var(--py, 0) * 16px); transition: translate 0.8s var(--ease-emph); }
+        .hero-aurora #totalBalance { translate: calc(var(--px, 0) * 5px) calc(var(--py, 0) * 3px); transition: translate 0.8s var(--ease-emph); }
+        /* หัวแอปเข้ามาเป็นจังหวะหลังหน้าโหลดจางหาย */
+        @keyframes hdrIn { from { opacity: 0; transform: translateY(-10px); } }
+        .app-header header > div { animation: hdrIn 0.7s var(--ease-emph) 0.4s backwards; }
+        .app-header header > div:nth-child(2) { animation-delay: 0.5s; }
+        .hdr-actions > button { animation: hdrIn 0.6s var(--spring) backwards; }
+        .hdr-actions > button:nth-child(1) { animation-delay: 0.5s; } .hdr-actions > button:nth-child(2) { animation-delay: 0.56s; } .hdr-actions > button:nth-child(3) { animation-delay: 0.62s; } .hdr-actions > button:nth-child(4) { animation-delay: 0.68s; }
+        /* การ์ดยอดเงินค่อยๆ ย่อและจางเมื่อเลื่อนผ่าน (scroll-driven animations) */
+        @keyframes heroExit { to { transform: scale(0.94) translateY(-16px); opacity: 0.4; } }
+        @supports (animation-timeline: view()) { .hero-aurora { animation: heroExit linear both; animation-timeline: view(); animation-range: exit 0% exit 75%; } }
         .submit-sticky { box-shadow: 0 -20px 16px 4px #fff !important; }
         /* --- ปรับสำหรับมือถือ --- */
         html { -webkit-text-size-adjust: 100%; }
@@ -305,7 +333,7 @@
                         </h1>
                         <button type="button" id="syncStatus" onclick="window.openSyncStatus()"></button>
                     </div>
-                    <div class="flex items-center gap-1 sm:gap-2">
+                    <div class="hdr-actions flex items-center gap-1 sm:gap-2">
                         <button onclick="window.openModal('copyBillsModal')" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-purple-500 hover:text-purple-600 shadow-sm transition-all active:scale-95" title="คัดลอกบิลเดือนก่อน"><i class="ph-bold ph-copy text-lg"></i></button>
                         <button onclick="window.manualSync()" id="syncBtn" title="ซิงค์ตอนนี้ (ส่งข้อมูลที่ค้าง + ดึงข้อมูลล่าสุดจาก Google Sheet)" aria-label="ซิงค์ตอนนี้" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-blue-500 hover:text-blue-600 shadow-sm transition-all active:scale-95"><i class="ph-bold ph-arrows-clockwise text-lg"></i></button>
                         <button onclick="window.openModal('debtModal')" title="สรุปหนี้ & ค่าผ่อน" aria-label="สรุปหนี้และค่าผ่อน" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-orange-500 hover:text-orange-600 shadow-sm transition-all active:scale-95"><i class="ph-bold ph-credit-card text-lg"></i></button>
@@ -606,6 +634,15 @@
             </div>
         </div>
 
+        <!-- Row actions Modal (long-press) -->
+        <div id="rowMenuModal" class="sheet-grab bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal overflow-hidden max-h-[90dvh] mt-auto sm:mt-0">
+            <div class="px-6 pt-7 pb-3 flex justify-between items-start gap-3">
+                <div class="min-w-0"><p id="rowMenuTitle" class="font-bold text-gray-800 break-words"></p><p id="rowMenuSub" class="text-xs text-gray-500 mt-0.5"></p></div>
+                <button onclick="window.closeModal()" class="text-gray-400 text-xl"><i class="ph-bold ph-x"></i></button>
+            </div>
+            <div id="rowMenuBody" class="px-4 pb-safe space-y-2"></div>
+        </div>
+
         <!-- Sync status Modal -->
         <div id="syncModal" class="sheet-grab bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal overflow-hidden max-h-[90dvh] mt-auto sm:mt-0">
             <div class="bg-gray-50 px-6 py-4 flex justify-between items-center border-b border-gray-100">
@@ -642,7 +679,9 @@
         let searchQuery = "";
         let viewFilter = 'all';
         let animateNext = true;      // เล่นแอนิเมชันเข้าเฉพาะตอนเปิดแอป/เปลี่ยนเดือน/เปลี่ยนมุมมอง
-        let highlightId = null;      // รายการที่เพิ่งบันทึก เล่นแอนิเมชันเฉพาะรายการนั้น
+        let highlightId = null;
+        let liveHighlight = new Set();   // รายการที่เพิ่งเปลี่ยนจากอีกเครื่อง
+        let pulledOnce = false, firstSettled = false;      // รายการที่เพิ่งบันทึก เล่นแอนิเมชันเฉพาะรายการนั้น
         // --- คิวส่งข้อมูลไป Google Sheets (เก็บในเครื่อง ส่งซ้ำเองจนสำเร็จ) ---
         let syncQueue = [];
         try { syncQueue = JSON.parse(localStorage.getItem('walletQueue')) || []; } catch (e) { syncQueue = []; }
@@ -884,7 +923,7 @@
             document.getElementById('expBank').addEventListener('change', () => { expBankManual = true; });
             document.getElementById('incDesc').addEventListener('change', (e) => prefillFromHistory('income', e.target.value));
             // แตะพื้นหลัง/กด Esc เพื่อปิดหน้าต่างที่ไม่ใช่ฟอร์มกรอกข้อมูล (กันข้อมูลที่กำลังพิมพ์หาย)
-            const closeable = () => ['debtModal', 'copyBillsModal', 'budgetModal', 'sheetsModal', 'syncModal'].some(id => document.getElementById(id).classList.contains('flex'));
+            const closeable = () => ['debtModal', 'copyBillsModal', 'budgetModal', 'sheetsModal', 'syncModal', 'rowMenuModal'].some(id => document.getElementById(id).classList.contains('flex'));
             document.getElementById('modalContainer').addEventListener('click', (e) => { if (e.target.id === 'modalContainer' && closeable()) window.closeModal(); });
             document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && closeable()) window.closeModal(); });
             document.getElementById('searchInput').addEventListener('input', (e) => { searchQuery = e.target.value.trim().toLowerCase(); renderDashboard(); });
@@ -1016,7 +1055,7 @@
         };
 
         // ===== ปิดหน้าต่างแบบมีแอนิเมชัน + ปัดลงเพื่อปิด =====
-        const MODAL_IDS = ['incomeModal', 'expenseModal', 'sheetsModal', 'debtModal', 'budgetModal', 'copyBillsModal', 'syncModal'];
+        const MODAL_IDS = ['incomeModal', 'expenseModal', 'sheetsModal', 'debtModal', 'budgetModal', 'copyBillsModal', 'syncModal', 'rowMenuModal'];
         const prefersReduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         let closeTimer = null;
         function finishClose() {
@@ -1058,7 +1097,7 @@
             };
             head.addEventListener('touchend', end); head.addEventListener('touchcancel', end);
         }
-        ['budgetModal', 'copyBillsModal', 'debtModal', 'syncModal', 'sheetsModal'].forEach(id => enableSwipeClose(document.getElementById(id)));
+        ['budgetModal', 'copyBillsModal', 'debtModal', 'syncModal', 'sheetsModal', 'rowMenuModal'].forEach(id => enableSwipeClose(document.getElementById(id)));
 
         window.saveBudget = () => {
             const budgetVal = document.getElementById('budgetInput').value;
@@ -1265,7 +1304,7 @@
                 const result = await callSheets({ action: 'sync', since: force ? 0 : knownRev });
                 if (result.status !== 'success') { failSync(codeOfResult(result), result.message, 'pull'); return; }
                 if (result.unchanged) {
-                    clearSync('pull'); lastSyncAt = Date.now();
+                    clearSync('pull'); lastSyncAt = Date.now(); pulledOnce = true;
                     if (!silent) window.showToast("ซิงค์แล้ว ไม่มีข้อมูลใหม่", "success");
                     return;
                 }
@@ -1299,6 +1338,14 @@
                     let changed = false;
                     const sig = (arr) => JSON.stringify([...arr].sort((x, y) => (String(x.id) < String(y.id) ? -1 : 1)));
                     if (sig(result.data) !== sig(allTransactions)) {
+                        // รายการที่เปลี่ยนมาจากอีกเครื่อง: ไฮไลต์ "ใหม่" ให้เห็นว่าข้อมูลสดเข้ามาแล้ว
+                        const stable = (o) => JSON.stringify(o, Object.keys(o).sort());
+                        const localMap = new Map(allTransactions.map(x => [x.id, stable(x)]));
+                        const changedIds = result.data.filter(x => localMap.get(x.id) !== stable(x)).map(x => x.id);
+                        if (pulledOnce && changedIds.length) {
+                            liveHighlight = new Set(changedIds);
+                            window.showToast(`มีข้อมูลใหม่จากอีกเครื่อง ${changedIds.length} รายการ`, 'success');
+                        }
                         allTransactions = result.data;
                         localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
                         changed = true;
@@ -1314,12 +1361,17 @@
                         });
                     }
                     knownRev = result.rev || 0;
+                    pulledOnce = true;
                     if (ensureRecurring()) changed = true;
                     if (changed) renderDashboard();
                     if (!silent) window.showToast("ซิงค์สำเร็จ", "success");
                 }
             } catch (error) { failSync(codeOfError(error), error.detail, 'pull'); }
-            finally { isSyncing = false; updateSyncStatus(); if (!silent) document.querySelector('#syncBtn i').classList.remove('animate-spin'); }
+            finally {
+                isSyncing = false; updateSyncStatus();
+                if (!silent) document.querySelector('#syncBtn i').classList.remove('animate-spin');
+                if (!firstSettled) { firstSettled = true; if (allTransactions.length === 0) renderDashboard(); }   // เลิกโชว์โครงกระดูกหลังซิงค์ครั้งแรกเสร็จ (สำเร็จหรือไม่ก็ตาม)
+            }
         };
 
         // --- ซิงค์อัตโนมัติ: เช็กทุก 3 วินาที (ชีตตอบสั้นๆ ถ้าไม่มีอะไรเปลี่ยน) และดึงเต็มทุก ~1 นาที ---
@@ -1621,9 +1673,14 @@
 
 
             if (monthlyData.length === 0) {
-                const emptyTitle = searchQuery ? 'ไม่พบรายการที่ค้นหา' : viewFilter === 'income' ? 'ยังไม่มีรายรับเดือนนี้' : viewFilter === 'expense' ? 'ยังไม่มีรายจ่ายเดือนนี้' : 'ยังไม่มีรายการเดือนนี้';
-                const emptyHint = searchQuery ? 'ลองใช้คำค้นอื่น' : 'กดปุ่ม "รับเงิน" หรือ "จ่ายเงิน" ด้านล่างเพื่อเริ่มบันทึก';
-                list.innerHTML = `<div class="empty-state glass-card rounded-2xl"><img src="icons/icon.svg" alt="" class="empty-float w-16 h-16 rounded-2xl shadow-lg shadow-primary/20 mb-3"><p class="font-semibold text-gray-600">${emptyTitle}</p><p class="text-xs mt-1">${emptyHint}</p></div>`;
+                if (!firstSettled && window.sheetsWebhookUrl && allTransactions.length === 0 && !searchQuery) {
+                    // รอข้อมูลจากชีตครั้งแรก: โชว์โครงกระดูกเรืองแสงแทนหน้าว่างที่ทำให้ตกใจ
+                    list.innerHTML = [0, 1, 2].map(i => `<div class="skeleton h-[74px]" style="animation-delay:${i * 0.12}s" aria-hidden="true"></div>`).join('');
+                } else {
+                    const emptyTitle = searchQuery ? 'ไม่พบรายการที่ค้นหา' : viewFilter === 'income' ? 'ยังไม่มีรายรับเดือนนี้' : viewFilter === 'expense' ? 'ยังไม่มีรายจ่ายเดือนนี้' : 'ยังไม่มีรายการเดือนนี้';
+                    const emptyHint = searchQuery ? 'ลองใช้คำค้นอื่น' : 'กดปุ่ม "รับเงิน" หรือ "จ่ายเงิน" ด้านล่างเพื่อเริ่มบันทึก';
+                    list.innerHTML = `<div class="empty-state glass-card rounded-2xl"><img src="icons/icon.svg" alt="" class="empty-float w-16 h-16 rounded-2xl shadow-lg shadow-primary/20 mb-3"><p class="font-semibold text-gray-600">${emptyTitle}</p><p class="text-xs mt-1">${emptyHint}</p></div>`;
+                }
             } else {
                 monthlyData.forEach((t, i) => {
                     if (t.date !== lastDate) {
@@ -1641,6 +1698,7 @@
                     const row = document.createElement('div');
                     row.className = 'swipe-row';
                     row.dataset.id = t.id;
+                    if (liveHighlight.has(t.id)) row.classList.add('live-flash');
                     if (anim || t.id === highlightId) {
                         row.classList.add('list-item-enter');
                         if (anim) row.style.animationDelay = `${Math.min(i, 8) * 0.045}s`;
@@ -1685,6 +1743,7 @@
                     attachSwipe(row, div, t);
                     list.appendChild(row);
                 });
+                liveHighlight = new Set();
             }
 
             tweenNumber(document.getElementById('totalIncome'), incTotal);
@@ -2126,36 +2185,55 @@
         // ===== ปัดแถวรายการ: ซ้าย=ลบ (เลิกทำได้) ขวา=จ่ายแล้ว แตะ=แก้ไข =====
         function attachSwipe(row, card, t) {
             let x0 = null, y0 = null, dx = 0, dragging = false, moved = false;
+            let lastX = 0, lastT = 0, vx = 0, pressTimer = null, hintTimer = null;
             const isExpense = t.type === 'expense';
+            // ลากเกินระยะแล้วหนืดขึ้น (rubber band)
+            const rubber = (v, limit) => { const a = Math.abs(v); return Math.sign(v) * Math.min(a <= limit ? a : limit + (a - limit) * 0.25, limit + 70); };
+            const cancelPress = () => { clearTimeout(pressTimer); clearTimeout(hintTimer); pressTimer = null; card.classList.remove('pressing'); };
             card.addEventListener('pointerdown', (e) => {
                 if (e.target.closest('button') || (e.pointerType === 'mouse' && e.button !== 0)) return;
                 x0 = e.clientX; y0 = e.clientY; dx = 0; dragging = false; moved = false;
+                lastX = x0; lastT = performance.now(); vx = 0;
+                hintTimer = setTimeout(() => card.classList.add('pressing'), 150);
+                // กดค้างเปิดเมนู: แก้ไข / ทำซ้ำ / ลบ
+                pressTimer = setTimeout(() => {
+                    pressTimer = null; card.classList.remove('pressing');
+                    moved = true; x0 = null;
+                    haptic(24); openRowMenu(t.id);
+                }, 540);
             });
             card.addEventListener('pointermove', (e) => {
                 if (x0 === null) return;
                 const mx = e.clientX - x0, my = e.clientY - y0;
+                if (Math.abs(mx) > 8 || Math.abs(my) > 8) cancelPress();
                 if (!dragging) {
                     if (Math.abs(mx) > 10 && Math.abs(mx) > Math.abs(my) * 1.4) { dragging = true; moved = true; try { card.setPointerCapture(e.pointerId); } catch (err) {} card.style.transition = 'none'; }
                     else if (Math.abs(my) > 10) { x0 = null; return; }   // กำลังเลื่อนหน้าจอในแนวตั้ง
                 }
                 if (dragging) {
-                    dx = Math.max(isExpense ? -150 : -150, Math.min(isExpense ? 150 : 0, mx));
+                    const now = performance.now(), dt = Math.max(16, now - lastT);
+                    vx = (e.clientX - lastX) / dt; lastX = e.clientX; lastT = now;
+                    dx = isExpense ? rubber(mx, 150) : rubber(Math.min(0, mx), 150);
                     card.style.transform = `translateX(${dx}px)`;
                     row.dataset.swipe = dx < -12 ? 'left' : dx > 12 ? 'right' : '';
                 }
             });
             const end = () => {
+                cancelPress();
                 if (x0 === null) return;
-                const wasDragging = dragging, finalDx = dx;
+                const wasDragging = dragging, finalDx = dx, speed = vx;
                 x0 = null; dragging = false;
                 if (!wasDragging) return;
                 card.style.transition = '';
                 setTimeout(() => { moved = false; }, 60);
-                if (finalDx < -90) {
+                // ปัดไกลพอ หรือสะบัดเร็ว (แรงเฉื่อย) ก็ถือว่ายืนยัน
+                const commitLeft = finalDx < -90 || (speed < -0.7 && finalDx < -40);
+                const commitRight = isExpense && (finalDx > 90 || (speed > 0.7 && finalDx > 40));
+                if (commitLeft) {
                     haptic(18);
                     card.style.transform = 'translateX(-110%)';
                     window.deleteItem(t.id);
-                } else if (finalDx > 90 && isExpense) {
+                } else if (commitRight) {
                     haptic(18);
                     card.style.transform = '';
                     const cur = allTransactions.find(x => x.id === t.id);
@@ -2170,10 +2248,55 @@
                 row.dataset.swipe = '';
             };
             card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end);
+            card.addEventListener('contextmenu', (e) => e.preventDefault());
             card.addEventListener('click', (e) => {
                 if (e.target.closest('button') || moved) return;
                 window.editItem(t.id);
             });
+        }
+
+        // ===== เมนูกดค้าง: แก้ไข / จ่ายแล้ว / ทำซ้ำ / ลบ =====
+        function openRowMenu(id) {
+            const t = allTransactions.find(x => x.id === id);
+            if (!t) return;
+            document.getElementById('rowMenuTitle').textContent = t.description || '(ไม่มีชื่อ)';
+            document.getElementById('rowMenuSub').textContent = `${t.type === 'income' ? 'รายรับ' : 'รายจ่าย'} · ${formatDate(t.date)} · ${formatMoney(t.type === 'income' ? t.netAmount : t.amount)}`;
+            const canDup = t.type === 'income' || billKind(t) === 'normal';
+            const item = (kind, icon, label, cls = '', disabled = false) => `<button type="button" class="menu-item ${cls}" ${disabled ? 'disabled' : `onclick="window.rowMenuAction('${kind}', '${String(t.id).replace(/'/g, '')}')"`}><span class="text-xl">${icon}</span><span>${label}</span></button>`;
+            document.getElementById('rowMenuBody').innerHTML =
+                item('edit', '✏️', 'แก้ไขรายการ') +
+                (t.type === 'expense' ? item('paid', t.isCompleted ? '↩️' : '✅', t.isCompleted ? 'เปลี่ยนเป็นยังไม่จ่าย' : 'ทำเครื่องหมายว่าจ่ายแล้ว') : '') +
+                item('dup', '📋', canDup ? 'ทำซ้ำเป็นรายการใหม่ (วันนี้)' : 'ทำซ้ำ (บิลผ่อนไม่รองรับ)', '', !canDup) +
+                item('del', '🗑️', 'ลบรายการ', 'danger');
+            window.openModal('rowMenuModal');
+        }
+        window.rowMenuAction = (kind, id) => {
+            window.closeModal();
+            if (kind === 'edit') window.editItem(id);
+            else if (kind === 'paid') window.toggleStatus(id);
+            else if (kind === 'dup') duplicateItem(id);
+            else if (kind === 'del') window.deleteItem(id);
+        };
+        function duplicateItem(id) {
+            const src = allTransactions.find(x => x.id === id);
+            if (!src) return;
+            const copy = { ...src };
+            ['seriesId', 'autoGenerated', 'stopAuto', 'userEdited'].forEach(k => delete copy[k]);
+            const today = localDateStr();
+            copy.id = Date.now().toString() + Math.floor(Math.random() * 1000);
+            copy.date = today; copy.monthYear = today.slice(0, 7); copy.timestamp = Date.now();
+            if (copy.type === 'expense') { copy.isCompleted = false; copy.payMode = copy.payMode || 'normal'; }
+            allTransactions.push(copy);
+            localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+            highlightId = copy.id;
+            sendToSheets(copy);
+            renderDashboard();
+            window.showToast(`ทำซ้ำเป็นรายการวันนี้แล้ว (${formatDate(today)})`, 'success', { duration: 5000, action: { label: 'เลิกทำ', fn: () => {
+                allTransactions = allTransactions.filter(x => x.id !== copy.id);
+                localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+                sendToSheets({ action: 'delete', id: copy.id });
+                renderDashboard();
+            } } });
         }
 
         // ===== เส้นแนวโน้ม 6 เดือน ในการ์ดรายรับ/รายจ่าย =====
@@ -2221,6 +2344,17 @@
 
         // ===== ปุ่มลอย: ซ่อนตอนเลื่อนลง โผล่ตอนเลื่อนขึ้น + ระลอกคลื่นตอนแตะปุ่ม =====
         (function interactionPolish() {
+            const hero = document.querySelector('.hero-aurora');
+            if (hero && !prefersReduced()) {
+                const setP = (e) => {
+                    const r = hero.getBoundingClientRect();
+                    hero.style.setProperty('--px', (((e.clientX - r.left) / r.width) * 2 - 1).toFixed(3));
+                    hero.style.setProperty('--py', (((e.clientY - r.top) / r.height) * 2 - 1).toFixed(3));
+                };
+                const reset = () => { hero.style.setProperty('--px', '0'); hero.style.setProperty('--py', '0'); };
+                hero.addEventListener('pointermove', setP);
+                ['pointerleave', 'pointerup', 'pointercancel'].forEach(ev => hero.addEventListener(ev, reset));
+            }
             const fab = document.getElementById('fabBar');
             let lastY = window.scrollY, ticking = false;
             window.addEventListener('scroll', () => {

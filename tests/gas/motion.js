@@ -27,7 +27,8 @@ async function open(browser, { reduced = false, height = 600, data = seed } = {}
   ok(!(await inView(listBox)), 'list section below the fold waits');
   await p.evaluate(() => document.getElementById('transactionsList').scrollIntoView({ block: 'center' })); await p.waitForTimeout(900);
   ok(await inView(listBox), 'and appears once scrolled into view');
-  ok(await p.evaluate(() => getComputedStyle(document.querySelector('.hero-aurora')).opacity) === '1', 'revealed card is fully opaque');
+  await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(400);
+  ok(await p.evaluate(() => getComputedStyle(document.querySelector('.hero-aurora')).opacity) === '1', 'revealed card is fully opaque when on screen');
 
   console.log('== focus, validation, keyboard ==');
   await p.evaluate(() => window.scrollTo(0, 0));
