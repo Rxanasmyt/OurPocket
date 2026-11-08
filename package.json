@@ -3,9 +3,12 @@
   "private": true,
   "description": "Our Wallet - static web app. Run `npm run build:css` after changing Tailwind classes in index.html.",
   "scripts": {
-    "build:css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --minify"
+    "build:css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --minify",
+    "test:sheet": "node tests/gas/test-sheet.js && node tests/gas/test-formulas.js",
+    "test:e2e": "node tests/gas/e2e.js"
   },
   "devDependencies": {
-    "tailwindcss": "3.4.17"
+    "tailwindcss": "3.4.17",
+    "hyperformula": "2.7.1"
   }
 }
