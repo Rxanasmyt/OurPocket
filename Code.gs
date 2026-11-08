@@ -10,12 +10,12 @@
 var SHEET_DATA = 'รายการ';
 var SHEET_DASH = 'สรุป';
 var SHEET_SET = 'ตั้งค่า';
-var SETUP_VERSION = 'v2';
-var HEADERS = ["ประเภท", "วันที่", "เดือน-ปี", "หมวดหมู่", "รายการ", "คนทำรายการ", "ธนาคาร", "งวดที่", "รวมงวด", "จำนวนเงิน", "สถานะ", "บันทึกเมื่อ", "ID", "RAW_JSON"];
+var SETUP_VERSION = 'v3';
+var HEADERS = ["ประเภท", "วันที่", "เดือน-ปี", "หมวดหมู่", "รายการ", "คนทำรายการ", "ธนาคาร", "งวดที่", "รวมงวด", "จำนวนเงิน", "สถานะ", "บันทึกเมื่อ", "ID", "RAW_JSON", "รูปแบบการจ่าย", "ยอดเต็มบิล", "ขั้นต่ำ / ต่องวด", "คงค้าง"];
 var COL_ID = 12;   // index (0-based) ของคอลัมน์ ID
 var COL_JSON = 13; // index (0-based) ของคอลัมน์ RAW_JSON
 var EXPENSE_CATEGORIES = ['อาหาร', 'เดินทาง', 'ช้อปปิ้ง', 'ที่พัก', 'สุขภาพ', 'หนี้สิน', 'อื่นๆ'];
-var PEOPLE = ['กองกลาง', 'ฉัน', 'แฟน'];
+var PEOPLE = ['Anas', 'Phada'];
 
 var COLOR_PRIMARY = '#ff4d6d';
 var COLOR_DARK = '#c9184a';
@@ -87,7 +87,9 @@ function doPost(e) {
     var row = [
       type, data.date || '-', data.monthYear || '-', data.category || '-', data.description || '-',
       data.who || '-', data.bank || '-', data.currentInstallment || '-', data.totalInstallments || '-',
-      Number(amount) || 0, status, savedAt, data.id || '-', JSON.stringify(data)
+      Number(amount) || 0, status, savedAt, data.id || '-', JSON.stringify(data),
+      payModeLabel_(data), data.fullAmount || '-', data.minAmount || data.installmentAmount || '-',
+      data.payMode === 'minpay' ? (Number(data.remainingAmount) || 0) : '-'
     ];
 
     var rowIndex = findRowById_(sheet, data.id);
@@ -104,6 +106,13 @@ function doPost(e) {
   } finally {
     try { lock.releaseLock(); } catch (x) {}
   }
+}
+
+function payModeLabel_(data) {
+  if (data.type === 'income') return '-';
+  if (data.payMode === 'minpay') return 'ผ่อนบัตร: จ่ายขั้นต่ำ';
+  if (data.payMode === 'installment' || (!data.payMode && data.totalInstallments)) return 'ผ่อนบัตร: จ่ายเป็นงวด';
+  return 'จ่ายปกติ';
 }
 
 function findRowById_(sheet, id) {
@@ -237,8 +246,10 @@ function formatDataSheet_(sh) {
   sh.getRange(2, 10, n - 1, 1).setHorizontalAlignment('right').setFontWeight('bold');
   sh.getRange(2, 11, n - 1, 1).setHorizontalAlignment('center');
   sh.getRange(2, 12, n - 1, 1).setHorizontalAlignment('center').setFontColor('#9ca3af');
+  sh.getRange(2, 15, n - 1, 1).setHorizontalAlignment('center');
+  sh.getRange(2, 16, n - 1, 3).setNumberFormat('#,##0.00').setHorizontalAlignment('right');
 
-  var widths = [80, 100, 80, 100, 240, 100, 100, 70, 80, 120, 120, 150, 120, 120];
+  var widths = [80, 100, 80, 110, 240, 100, 100, 70, 80, 120, 120, 150, 120, 120, 170, 110, 130, 110];
   for (var c = 0; c < widths.length; c++) sh.setColumnWidth(c + 1, widths[c]);
 
   // สลับสีแถว
@@ -259,7 +270,8 @@ function formatDataSheet_(sh) {
   sh.setConditionalFormatRules(rules);
 
   // ตัวกรอง + ซ่อนคอลัมน์ที่ระบบใช้ภายใน (ID, RAW_JSON)
-  if (!sh.getFilter()) sh.getRange(1, 1, n, cols).createFilter();
+  if (sh.getFilter()) sh.getFilter().remove();
+  sh.getRange(1, 1, n, cols).createFilter();
   sh.hideColumns(COL_ID + 1, 2);
 }
 
