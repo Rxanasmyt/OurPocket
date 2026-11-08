@@ -261,7 +261,10 @@ function doPost(e) {
     if (data.action === 'batch') {
       var items = data.items || [], results = [], changed = false;
       for (var i = 0; i < items.length; i++) {
-        var one = applyOne_(ss, sheet, map, items[i] || {});
+        var one;
+        // รายการหนึ่งผิดพลาดต้องไม่ทำให้รายการอื่นในชุดเดียวกันหายไปจากผลลัพธ์ และต้องเพิ่มเลขรุ่นถ้ามีรายการที่เขียนไปแล้ว
+        try { one = applyOne_(ss, sheet, map, items[i] || {}); }
+        catch (itemErr) { one = {status: "error", code: "exception", message: itemErr.toString()}; }
         if (one.changed) changed = true;
         results.push({status: one.status, code: one.code, message: one.message});
       }

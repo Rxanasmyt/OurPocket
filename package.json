@@ -5,7 +5,8 @@
   "scripts": {
     "build:css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --minify",
     "test:sheet": "node tests/gas/test-sheet.js && node tests/gas/test-formulas.js",
-    "test:e2e": "node tests/gas/e2e.js"
+    "test:e2e": "node tests/gas/e2e.js",
+    "test:ui": "node tests/gas/ui-regression.js"
   },
   "devDependencies": {
     "tailwindcss": "3.4.17",

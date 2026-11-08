@@ -21,7 +21,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.9.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.9.2"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -245,7 +245,7 @@
                 <button onclick="window.closeModal()"><i class="ph-bold ph-x"></i></button>
             </div>
             <p class="text-sm text-gray-500 mb-4">กำหนดเป้าหมายว่าเดือนนี้เราจะใช้เงินรวมกันไม่เกินกี่บาท เพื่อควบคุมการใช้จ่ายครับ</p>
-            <input type="number" inputmode="decimal" id="budgetInput" placeholder="จำนวนเงิน (บาท)" class="w-full px-4 py-3 rounded-xl border border-gray-200 mb-4 text-lg font-bold text-center">
+            <input type="number" inputmode="decimal" max="99999999" id="budgetInput" placeholder="จำนวนเงิน (บาท)" class="w-full px-4 py-3 rounded-xl border border-gray-200 mb-4 text-lg font-bold text-center">
             <button onclick="window.saveBudget()" class="w-full py-3.5 rounded-xl font-medium text-white bg-primary shadow-lg shadow-primary/30">บันทึกงบประมาณ</button>
         </div>
 
@@ -288,7 +288,7 @@
                         </select>
                     </div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label><input type="text" id="incDesc" list="incDescList" autocomplete="off" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200"></div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label><input type="number" inputmode="decimal" id="incAmount" required step="0.01" min="0" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label><input type="number" inputmode="decimal" max="99999999.99" id="incAmount" required step="0.01" min="0" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold"></div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">หัก ณ ที่จ่าย</label>
                         <select id="incTaxRate" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm">
@@ -352,8 +352,8 @@
                     </div>
                     <div id="expMinBox" class="hidden space-y-2 p-3 bg-orange-50/60 rounded-xl border border-orange-100">
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดเต็มตามบิล</label><input type="number" inputmode="decimal" id="expFullAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 20000"></div>
-                            <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดขั้นต่ำ</label><input type="number" inputmode="decimal" id="expMinAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 1000"></div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดเต็มตามบิล</label><input type="number" inputmode="decimal" max="99999999.99" id="expFullAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 20000"></div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดขั้นต่ำ</label><input type="number" inputmode="decimal" max="99999999.99" id="expMinAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 1000"></div>
                         </div>
                         <p id="expMinHint" class="text-xs text-orange-700"></p>
                     </div>
@@ -362,10 +362,10 @@
                             <div><label class="block text-sm font-medium text-gray-700 mb-1">งวดที่</label><input type="number" inputmode="numeric" id="expCurInstall" min="1" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 1"></div>
                             <div><label class="block text-sm font-medium text-gray-700 mb-1">จากทั้งหมด</label><input type="number" inputmode="numeric" id="expTotalInstall" min="1" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 10"></div>
                         </div>
-                        <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดผ่อนต่องวด (บาท)</label><input type="number" inputmode="decimal" id="expInstallAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 1500"></div>
+                        <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดผ่อนต่องวด (บาท)</label><input type="number" inputmode="decimal" max="99999999.99" id="expInstallAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 1500"></div>
                         <p class="text-xs text-orange-700">จ่ายน้อยกว่ายอดต่องวดไม่ได้</p>
                     </div>
-                    <div><label id="expAmountLabel" class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label><input type="number" inputmode="decimal" id="expAmount" required step="0.01" min="0" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold"></div>
+                    <div><label id="expAmountLabel" class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label><input type="number" inputmode="decimal" max="99999999.99" id="expAmount" required step="0.01" min="0" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold"></div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">วันกำหนดจ่าย</label><input type="date" id="expDueDate" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200"></div>
 
                     <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
@@ -650,7 +650,10 @@
         }
 
         function setupListeners() {
-            document.getElementById('monthSelector').addEventListener('change', (e) => { currentMonthYear = e.target.value; animateNext = true; renderDashboard(); });
+            document.getElementById('monthSelector').addEventListener('change', (e) => {
+                if (!/^\d{4}-\d{2}$/.test(e.target.value)) { e.target.value = currentMonthYear; return; } // ล้างช่องเดือนแล้วให้กลับเป็นเดือนเดิม
+                currentMonthYear = e.target.value; animateNext = true; renderDashboard();
+            });
             document.getElementById('expDesc').addEventListener('input', (e) => autoFillFromDescription(e.target.value));
             document.getElementById('expDesc').addEventListener('change', (e) => prefillFromHistory('expense', e.target.value));
             document.getElementById('expCategory').addEventListener('change', () => { expCategoryManual = true; document.getElementById('expCatHint').textContent = ''; });
@@ -675,14 +678,14 @@
             const calcNet = () => {
                 const amt = parseFloat(document.getElementById('incAmount').value) || 0;
                 const taxRate = parseFloat(document.getElementById('incTaxRate').value) || 0;
-                document.getElementById('incNetAmountDisplay').textContent = formatMoney(amt - (amt * taxRate / 100));
+                document.getElementById('incNetAmountDisplay').textContent = formatMoney(round2(amt - (amt * taxRate / 100)));
             };
             document.getElementById('incAmount').addEventListener('input', calcNet);
             document.getElementById('incTaxRate').addEventListener('change', calcNet);
 
             document.getElementById('incomeForm').addEventListener('submit', (e) => {
                 e.preventDefault();
-                const amt = parseFloat(document.getElementById('incAmount').value);
+                const amt = round2(parseFloat(document.getElementById('incAmount').value));
                 const taxRate = parseFloat(document.getElementById('incTaxRate').value);
                 const data = {
                     id: currentEditId || Date.now().toString(),
@@ -693,7 +696,7 @@
                     who: document.getElementById('incWho').value,
                     description: document.getElementById('incDesc').value,
                     amount: amt, taxRate: taxRate,
-                    netAmount: amt - (amt * taxRate / 100),
+                    netAmount: round2(amt - (amt * taxRate / 100)),
                     timestamp: new Date().getTime()
                 };
                 window.saveAndSync(data, 'incomeModal', 'incNetAmountDisplay');
@@ -712,8 +715,7 @@
                 e.preventDefault();
                 const fail = (msg) => window.showToast(msg, 'error');
                 const mode = document.getElementById('expPayMode').value;
-                const paid = parseFloat(document.getElementById('expAmount').value);
-                const round2 = (n) => Math.round(n * 100) / 100;
+                const paid = round2(parseFloat(document.getElementById('expAmount').value));
                 const extra = { payMode: mode, fullAmount: null, minAmount: null, installmentAmount: null, remainingAmount: null, currentInstallment: null, totalInstallments: null };
 
                 if (mode === 'minpay') {
@@ -751,6 +753,7 @@
                 };
                 const prevItem = currentEditId ? allTransactions.find(t => t.id === currentEditId) : null;
                 if (prevItem) {
+                    if (billKind(prevItem) !== 'normal') data.seriesId = seriesOf(prevItem); // แก้ชื่อ/ธนาคารแล้วยังเป็นบิลชุดเดิม ไม่สร้างบิลซ้ำ
                     if (prevItem.autoGenerated) { data.autoGenerated = true; data.userEdited = true; }
                     if (prevItem.stopAuto) data.stopAuto = true;
                     if (prevItem.userEdited) data.userEdited = true;
@@ -1030,7 +1033,8 @@
                         }
                     }
                     let changed = false;
-                    if (JSON.stringify(result.data) !== JSON.stringify(allTransactions)) {
+                    const sig = (arr) => JSON.stringify([...arr].sort((x, y) => (String(x.id) < String(y.id) ? -1 : 1)));
+                    if (sig(result.data) !== sig(allTransactions)) {
                         allTransactions = result.data;
                         localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
                         changed = true;
@@ -1136,11 +1140,14 @@
                 const isMin = t.payMode === 'minpay';
                 const isInst = t.payMode === 'installment' || (!t.payMode && t.totalInstallments > 0);
                 if (!isMin && !isInst) return;
-                const key = (t.who || '') + '|' + (t.description || '').toLowerCase().trim();
-                if (!groups[key] || new Date(t.date) > new Date(groups[key].date)) groups[key] = t;
+                const key = seriesOf(t);
+                if (!groups[key] || sortByMonthDate(groups[key], t) < 0) groups[key] = t;   // เอาบิลล่าสุดของแต่ละชุด
             });
 
-            const debts = Object.values(groups).filter(d => d.payMode !== 'minpay' || (d.remainingAmount || 0) > 0);
+            // ยอดที่ยังต้องจ่ายจริง: ถ้าบิลล่าสุดยังไม่ได้จ่าย ยอดค้างคือยอดเต็มของบิลนั้น ถ้าจ่ายแล้วคือยอดที่เหลือหลังจ่าย
+            const minLeft = (d) => (d.isCompleted ? Number(d.remainingAmount) : Number(d.fullAmount)) || 0;
+            const instLeft = (d) => Math.max(0, (parseInt(d.totalInstallments) || 1) - (parseInt(d.currentInstallment) || 1) + (d.isCompleted ? 0 : 1));
+            const debts = Object.values(groups).filter(d => d.payMode === 'minpay' ? minLeft(d) > 0 : instLeft(d) > 0);
 
             if (debts.length === 0) {
                 debtListContainer.innerHTML = `<div class="text-center py-6 text-gray-400 glass-card rounded-2xl"><p>ไม่มีรายการผ่อนชำระ 👏</p></div>`;
@@ -1151,9 +1158,9 @@
             const cards = debts.map(d => {
                 const whoTag = d.who ? `<span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded ml-1">${escapeHTML(d.who)}</span>` : '';
                 if (d.payMode === 'minpay') {
-                    const full = Number(d.fullAmount) || 0, left = Number(d.remainingAmount) || 0;
+                    const full = Number(d.fullAmount) || 0, left = minLeft(d);
                     totalLeft += left;
-                    const percent = full > 0 ? Math.min(100, Math.round((full - left) / full * 100)) : 0;
+                    const percent = d.isCompleted && full > 0 ? Math.min(100, Math.round((full - left) / full * 100)) : 0;
                     return `
                     <div class="border border-orange-100 bg-orange-50/50 p-4 rounded-xl">
                         <div class="flex justify-between items-center mb-2">
@@ -1162,18 +1169,18 @@
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2 mb-2"><div class="bg-orange-500 h-2 rounded-full" style="width: ${percent}%"></div></div>
                         <div class="flex justify-between items-center text-xs text-gray-500">
-                            <p>ยอดเต็ม ${formatMoney(full)} · จ่ายล่าสุด ${formatMoney(d.amount)}</p>
+                            <p>${d.isCompleted ? `จ่ายล่าสุด ${formatMoney(d.amount)}` : 'บิลล่าสุดยังไม่ได้จ่าย'}</p>
                             <p class="font-bold text-orange-600">ค้าง ${formatMoney(left)}</p>
                         </div>
-                        <p class="text-[11px] text-gray-400 mt-1">ขั้นต่ำ ${formatMoney(d.minAmount || 0)}</p>
+                        <p class="text-[11px] text-gray-400 mt-1">${d.isCompleted ? 'ขั้นต่ำ' : 'งวดนี้จ่ายอย่างน้อย'} ${formatMoney(d.minAmount || 0)}</p>
                     </div>`;
                 }
                 const cur = parseInt(d.currentInstallment) || 1;
                 const tot = parseInt(d.totalInstallments) || 1;
                 const per = Number(d.installmentAmount) || Number(d.amount) || 0;
-                const leftInst = Math.max(0, tot - cur);
+                const leftInst = instLeft(d);
                 totalLeft += leftInst * per;
-                const percent = Math.min(100, Math.round((cur / tot) * 100));
+                const percent = Math.min(100, Math.round(((cur - (d.isCompleted ? 0 : 1)) / tot) * 100));
                 return `
                 <div class="border border-orange-100 bg-orange-50/50 p-4 rounded-xl">
                     <div class="flex justify-between items-center mb-2">
@@ -1229,7 +1236,6 @@
         function renderDashboard() {
             const anim = animateNext; animateNext = false;
             const list = document.getElementById('transactionsList');
-            const remList = document.getElementById('remindersList');
             const isCarryForward = document.getElementById('carryForwardToggle').checked;
 
             list.innerHTML = '';
@@ -1270,7 +1276,6 @@
             const expTotal = monthlyExpTotal;
             const balance = isCarryForward ? cumInc - cumExp : incTotal - expTotal;
 
-            const todayStr = localDateStr();
 
             if (monthlyData.length === 0) {
                 list.innerHTML = `<div class="text-center py-10 text-gray-400 glass-card rounded-2xl"><p>ไม่มี${viewFilter==='income'?'รายรับ':viewFilter==='expense'?'รายจ่าย':'รายการ'}${searchQuery?'ที่ค้นหา':''}</p></div>`;
@@ -1422,12 +1427,16 @@
             const from = Number(el.dataset.v) || 0;
             el.dataset.v = to;
             if (el._raf) cancelAnimationFrame(el._raf);
-            if (from === to || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = formatMoney(to); return; }
+            const fit = () => { // ตัวเลขยาวมากให้ย่อขนาดตัวอักษร ไม่ล้นการ์ด
+                const n = el.textContent.length;
+                el.style.fontSize = el.id === 'totalBalance' ? (n > 15 ? '1.75rem' : '') : (n > 13 ? '1rem' : '');
+            };
+            if (from === to || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = formatMoney(to); fit(); return; }
             const t0 = performance.now(), dur = 700;
             const step = (now) => {
                 const k = Math.min(1, (now - t0) / dur);
                 const eased = 1 - Math.pow(1 - k, 3);
-                el.textContent = formatMoney(from + (to - from) * eased);
+                el.textContent = formatMoney(from + (to - from) * eased); fit();
                 if (k < 1) el._raf = requestAnimationFrame(step);
             };
             el._raf = requestAnimationFrame(step);
@@ -1480,6 +1489,7 @@
 
         // ===== บิลต่อเนื่องอัตโนมัติ (ผ่อนรายงวด / จ่ายขั้นต่ำ) =====
         const hashStr = (str) => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+        const seriesOf = (t) => t.seriesId || hashStr(seriesKey(t));
         const seriesKey = (t) => [t.who || '', (t.description || '').trim().toLowerCase(), t.bank || '', billKind(t)].join('|');
         const sortByMonthDate = (a, b) => a.monthYear === b.monthYear ? new Date(a.date) - new Date(b.date) : (a.monthYear < b.monthYear ? -1 : 1);
 
@@ -1491,10 +1501,10 @@
                 if (t.type !== 'expense') return;
                 const kind = billKind(t);
                 if (kind === 'normal') return;
-                (groups[seriesKey(t)] = groups[seriesKey(t)] || []).push(t);
+                (groups[seriesOf(t)] = groups[seriesOf(t)] || []).push(t);
             });
             let changed = 0;
-            const mkId = (key, ym) => 'auto-' + hashStr(key) + '-' + ym;
+            const mkId = (sid, ym) => 'auto-' + sid + '-' + ym;
             const minNext = (prev) => {
                 const left = round2((Number(prev.fullAmount) || 0) - (Number(prev.amount) || 0));
                 if (left <= 0) return null;
@@ -1537,7 +1547,7 @@
                         patch = minNext(last);
                         if (!patch) break;
                     }
-                    const next = { ...last, ...patch, id: mkId(key, nextYM), date: dateInMonth(last.date, nextYM), monthYear: nextYM, isCompleted: false, autoGenerated: true, timestamp: Date.now() };
+                    const next = { ...last, ...patch, seriesId: key, id: mkId(key, nextYM), date: dateInMonth(last.date, nextYM), monthYear: nextYM, isCompleted: false, autoGenerated: true, timestamp: Date.now() };
                     delete next.stopAuto; delete next.userEdited;
                     if (allTransactions.some(t => t.id === next.id)) break;
                     allTransactions.push(next);
@@ -1623,7 +1633,7 @@
                     if (kind === 'installment') {
                         const cur = parseInt(t.currentInstallment) || 1, tot = parseInt(t.totalInstallments) || 1;
                         const endDate = dateInMonth(t.date, addMonth(t.monthYear, Math.max(0, tot - cur)));
-                        extra = `<p class="text-[11px] text-gray-500 mt-0.5">งวด ${cur}/${tot} · ผ่อนหมด ${thaiMonthYear(endDate)} (เหลือ ${Math.max(0, tot - cur)} งวด)</p>`;
+                        extra = `<p class="text-[11px] text-gray-500 mt-0.5">งวด ${cur}/${tot} · ผ่อนหมด ${thaiMonthYear(endDate)} (หลังงวดนี้อีก ${Math.max(0, tot - cur)} งวด)</p>`;
                     } else if (kind === 'minpay') {
                         extra = `<p class="text-[11px] text-gray-500 mt-0.5">ยอดเต็ม ${formatMoney(t.fullAmount || 0)} · ขั้นต่ำ ${formatMoney(t.minAmount || 0)} · ค้างหลังจ่าย ${formatMoney(t.remainingAmount || 0)}</p>`;
                     }
@@ -1794,7 +1804,7 @@
             const recurring = item && item.type === 'expense' && billKind(item) !== 'normal';
             let prevOfSeries = null;
             if (recurring) {
-                const sibs = allTransactions.filter(t => t.id !== id && t.type === 'expense' && seriesKey(t) === seriesKey(item)).sort(sortByMonthDate);
+                const sibs = allTransactions.filter(t => t.id !== id && t.type === 'expense' && seriesOf(t) === seriesOf(item)).sort(sortByMonthDate);
                 const last = sibs[sibs.length - 1];
                 if (last && last.monthYear < item.monthYear) prevOfSeries = last;
             }
@@ -1810,7 +1820,7 @@
             if (type === 'success' && navigator.vibrate) navigator.vibrate(12);
             const c = document.getElementById('toast-container'); const t = document.createElement('div');
             t.className = `flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium toast-enter toast-enter-active ${type==='success'?'bg-gray-800 text-white':'bg-red-500 text-white'}`;
-            t.innerHTML = `<i class="ph-bold ${type==='success'?'ph-check-circle text-green-400':'ph-warning-circle'} text-lg"></i> ${msg}`;
+            t.innerHTML = `<i class="ph-bold ${type==='success'?'ph-check-circle text-green-400':'ph-warning-circle'} text-lg"></i> ${escapeHTML(msg)}`;
             c.appendChild(t); setTimeout(()=>{ t.classList.add('toast-exit-active'); setTimeout(()=>t.remove(), 300); }, 2500);
         };
 
