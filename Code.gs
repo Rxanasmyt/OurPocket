@@ -13,13 +13,13 @@ var SHEET_DATA = 'รายการ';
 var SHEET_DASH = 'สรุป';
 var SHEET_SET = 'ตั้งค่า';
 var SHEET_MONTH = 'รายเดือน';
-var SETUP_VERSION = 'v4';
+var SETUP_VERSION = 'v5';
 var HEADERS = ["ประเภท", "วันที่", "เดือน-ปี", "หมวดหมู่", "รายการ", "คนทำรายการ", "ธนาคาร", "งวดที่", "รวมงวด", "จำนวนเงิน", "สถานะ", "บันทึกเมื่อ", "ID", "RAW_JSON", "รูปแบบการจ่าย", "ยอดเต็มบิล", "ขั้นต่ำ / ต่องวด", "คงค้าง"];
 var COL_ID = 12;   // index (0-based) ของคอลัมน์ ID
 var COL_JSON = 13; // index (0-based) ของคอลัมน์ RAW_JSON
 var EXPENSE_CATEGORIES = ['อาหาร', 'เดินทาง', 'ช้อปปิ้ง', 'ที่พัก', 'สุขภาพ', 'หนี้สิน', 'อื่นๆ'];
 var PEOPLE = ['Anas', 'Phada'];
-var INCOME_CATEGORIES = ['เงินเดือน', 'ค่าเสี่ยงภัย', 'ค่า พตส', 'ค่าเวร', 'ค่าใบประกอบ', 'ค่า ฉ.10', 'ค่า ฉ.11'];
+var INCOME_CATEGORIES = ['เงินเดือน', 'ค่าเสี่ยงภัย', 'ค่า พตส', 'ค่าเวร', 'ค่าใบประกอบ', 'ค่า ฉ.10', 'ค่า ฉ.11', 'ค่าเงินประจำตำแหน่ง'];
 
 var COLOR_PRIMARY = '#ff4d6d';
 var COLOR_DARK = '#c9184a';
@@ -414,11 +414,11 @@ function buildDashboard_(ss) {
     sh.getRange(ir, 10).setValue(INCOME_CATEGORIES[q]);
     sh.getRange(ir, 11).setFormula('=SUMIFS(' + amt + ',' + typ + ',"รายรับ",' + cat + ',$J' + ir + ',' + mon + ',$B$2)');
   }
-  sh.getRange('K11:K17').setNumberFormat('#,##0').setHorizontalAlignment('right').setFontColor('#047857');
-  sh.getRange('J11:K17').setBorder(null, null, true, null, null, true, '#d1fae5', SpreadsheetApp.BorderStyle.SOLID);
-  sh.getRange('J18:K18').setValues([['รวม', '']]);
-  sh.getRange('K18').setFormula('=SUM(K11:K17)').setNumberFormat('#,##0').setHorizontalAlignment('right');
-  sh.getRange('J18:K18').setFontWeight('bold').setBackground('#ecfdf5');
+  sh.getRange('K11:K18').setNumberFormat('#,##0').setHorizontalAlignment('right').setFontColor('#047857');
+  sh.getRange('J11:K18').setBorder(null, null, true, null, null, true, '#d1fae5', SpreadsheetApp.BorderStyle.SOLID);
+  sh.getRange('J19:K19').setValues([['รวม', '']]);
+  sh.getRange('K19').setFormula('=SUM(K11:K18)').setNumberFormat('#,##0').setHorizontalAlignment('right');
+  sh.getRange('J19:K19').setFontWeight('bold').setBackground('#ecfdf5');
 
   // ตารางที่ 4: แยกตามคน
   sectionTitle_(sh, 'F19:H19', '👫 แยกตามคน (เดือนที่เลือก)');
@@ -465,7 +465,7 @@ function buildDashboard_(ss) {
     .setPosition(41, 1, 0, 6).build());
 
   sh.insertChart(sh.newChart().asPieChart()
-    .addRange(sh.getRange('J10:K17')).setNumHeaders(1)
+    .addRange(sh.getRange('J10:K18')).setNumHeaders(1)
     .setOption('title', 'รายรับตามประเภท (เดือนที่เลือก)')
     .setOption('pieHole', 0.5).setOption('colors', GREENS)
     .setOption('legend', {position: 'right'}).setOption('pieSliceText', 'percentage')

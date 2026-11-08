@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  
+  <defs>
+    <linearGradient id="bga" x1="64" y1="0" x2="448" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff8fa3"/><stop offset=".42" stop-color="#ff4d6d"/><stop offset="1" stop-color="#a4133c"/>
+    </linearGradient>
+    <radialGradient id="gla" cx="150" cy="90" r="330" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bda" x1="0" y1="170" x2="0" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#ffd9e1"/>
+    </linearGradient>
+    <linearGradient id="hra" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffb3c1"/><stop offset="1" stop-color="#ff4d6d"/>
+    </linearGradient>
+    <linearGradient id="fla" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff6b88"/><stop offset="1" stop-color="#c9184a"/>
+    </linearGradient>
+    <filter id="sha" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#6a0a26" flood-opacity=".38"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bga)"/>
+  <rect width="512" height="512" rx="116" fill="url(#gla)"/>
+  <g transform="translate(256 256) scale(1) translate(-256 -256)">
+    <circle cx="420" cy="92" r="150" fill="#fff" opacity=".07"/>
+    <circle cx="70" cy="470" r="170" fill="#fff" opacity=".06"/>
+    <!-- card behind wallet -->
+    <g filter="url(#sha)">
+      <rect x="132" y="120" width="248" height="150" rx="34" fill="#fff" opacity=".42" transform="rotate(-9 256 200)"/>
+    </g>
+    <!-- heart -->
+    <g filter="url(#sha)" transform="translate(206 92) rotate(-10 50 50) scale(1.12)">
+      <path d="M50 92C8 62-6 38 6 20 17 4 40 7 50 27 60 7 83 4 94 20 106 38 92 62 50 92Z" fill="url(#hra)"/>
+      <path d="M26 24c6-8 17-8 22 2" stroke="#fff" stroke-opacity=".7" stroke-width="5" stroke-linecap="round" fill="none"/>
+    </g>
+    <!-- wallet body -->
+    <g filter="url(#sha)">
+      <rect x="92" y="192" width="328" height="222" rx="56" fill="url(#bda)"/>
+      <rect x="92" y="192" width="328" height="222" rx="56" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="3"/>
+    </g>
+    <!-- flap -->
+    <rect x="296" y="266" width="152" height="92" rx="46" fill="url(#fla)"/>
+    <rect x="296" y="266" width="152" height="92" rx="46" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="3"/>
+    <circle cx="352" cy="312" r="15" fill="#fff"/>
+    <circle cx="352" cy="312" r="6" fill="#ff4d6d"/>
+    <!-- sparkles -->
+    <path d="M404 136l7 20 20 7-20 7-7 20-7-20-20-7 20-7z" fill="#fff" opacity=".95"/>
+    <path d="M110 150l4 12 12 4-12 4-4 12-4-12-12-4 12-4z" fill="#fff" opacity=".8"/></g>
+</svg>
