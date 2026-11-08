@@ -21,7 +21,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.8.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.9.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -96,13 +96,13 @@
                         <h1 class="text-xl font-bold gradient-text flex items-center gap-2">
                             <img src="icons/icon.svg" alt="" class="w-8 h-8 rounded-[10px] shadow-md shadow-primary/30"> Our Wallet
                         </h1>
-                        <button type="button" id="syncStatus" onclick="window.manualSync()"></button>
+                        <button type="button" id="syncStatus" onclick="window.openSyncStatus()"></button>
                     </div>
                     <div class="flex items-center gap-1 sm:gap-2">
                         <button onclick="window.openModal('copyBillsModal')" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-purple-500 hover:text-purple-600 shadow-sm transition-all active:scale-95" title="คัดลอกบิลเดือนก่อน"><i class="ph-bold ph-copy text-lg"></i></button>
-                        <button onclick="window.manualSync()" id="syncBtn" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-blue-500 hover:text-blue-600 shadow-sm transition-all active:scale-95"><i class="ph-bold ph-arrows-clockwise text-lg"></i></button>
-                        <button onclick="window.openModal('debtModal')" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-orange-500 hover:text-orange-600 shadow-sm transition-all active:scale-95"><i class="ph-bold ph-credit-card text-lg"></i></button>
-                        <button onclick="window.openModal('sheetsModal')" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-gray-400 hover:text-primary shadow-sm transition-colors"><i class="ph-fill ph-gear text-lg"></i></button>
+                        <button onclick="window.manualSync()" id="syncBtn" title="ซิงค์ตอนนี้ (ส่งข้อมูลที่ค้าง + ดึงข้อมูลล่าสุดจาก Google Sheet)" aria-label="ซิงค์ตอนนี้" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-blue-500 hover:text-blue-600 shadow-sm transition-all active:scale-95"><i class="ph-bold ph-arrows-clockwise text-lg"></i></button>
+                        <button onclick="window.openModal('debtModal')" title="สรุปหนี้ & ค่าผ่อน" aria-label="สรุปหนี้และค่าผ่อน" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-orange-500 hover:text-orange-600 shadow-sm transition-all active:scale-95"><i class="ph-bold ph-credit-card text-lg"></i></button>
+                        <button onclick="window.openModal('sheetsModal')" title="ตั้งค่า Google Sheet" aria-label="ตั้งค่า Google Sheet" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-gray-400 hover:text-primary shadow-sm transition-colors"><i class="ph-fill ph-gear text-lg"></i></button>
                     </div>
                 </div>
                 <div class="flex justify-between items-center gap-2">
@@ -389,6 +389,15 @@
             </div>
         </div>
 
+        <!-- Sync status Modal -->
+        <div id="syncModal" class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal overflow-hidden max-h-[90dvh] mt-auto sm:mt-0">
+            <div class="bg-gray-50 px-6 py-4 flex justify-between items-center border-b border-gray-100">
+                <h3 class="font-bold text-lg text-gray-800 flex items-center gap-2"><i class="ph-fill ph-arrows-clockwise text-primary"></i> ตรวจสอบการซิงค์</h3>
+                <button onclick="window.closeModal()" class="text-gray-400 text-xl"><i class="ph-bold ph-x"></i></button>
+            </div>
+            <div id="syncModalBody" class="p-6 overflow-y-auto pb-safe"></div>
+        </div>
+
         <!-- Sheets Modal -->
         <div id="sheetsModal" class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal p-6 pb-safe mt-auto sm:mt-0">
             <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-lg text-green-700">ตั้งค่า Google Sheets</h3><button onclick="window.closeModal()"><i class="ph-bold ph-x"></i></button></div>
@@ -420,32 +429,120 @@
         // --- คิวส่งข้อมูลไป Google Sheets (เก็บในเครื่อง ส่งซ้ำเองจนสำเร็จ) ---
         let syncQueue = [];
         try { syncQueue = JSON.parse(localStorage.getItem('walletQueue')) || []; } catch (e) { syncQueue = []; }
-        let isFlushing = false, lastWriteAt = 0, lastSyncAt = 0;
-        let authError = false, sendError = false, pullError = false;
+        let isFlushing = false, lastWriteAt = 0, lastSyncAt = 0, lastSentAt = 0;
+        let knownRev = 0;            // เลขรุ่นข้อมูลล่าสุดจากชีต (ถ้าไม่เปลี่ยน ชีตตอบสั้นๆ ทำให้ซิงค์เร็ว)
+        let scriptApi = null;        // เวอร์ชัน API ของสคริปต์ Google ที่เช็กแล้ว
+        let syncFailure = null, lastNotifiedCode = null;
+        const REQUIRED_API = 8;
         window.sheetsKey = localStorage.getItem('sheetsKey') || '';
         const saveQueue = () => localStorage.setItem('walletQueue', JSON.stringify(syncQueue));
 
-        // ส่งคำขอไป Apps Script และอ่านผลตอบกลับ (ส่งรหัสผ่านใน body ไม่ใส่ใน URL)
-        // สคริปต์ Google ต้องเป็นเวอร์ชันใหม่ ไม่งั้นจะไม่ส่งข้อมูลไป (สคริปต์เก่าจะบันทึกคำขอซิงค์เป็นแถวขยะ)
-        let scriptOk = null, scriptOutdated = false;
+        // ===== สาเหตุที่ซิงค์ไม่ได้ + วิธีแก้ (แสดงในแถบสถานะ / หน้าตรวจสอบการซิงค์) =====
+        const SYNC_ERRORS = {
+            'no-url': { short: 'ใช้ในเครื่อง', tone: 'gray', title: 'ยังไม่ได้ตั้งค่า Google Sheet',
+                why: 'ข้อมูลเก็บอยู่ในเครื่องนี้เครื่องเดียว มือถืออีกเครื่องจะไม่เห็นข้อมูล',
+                steps: ['แตะปุ่มเฟือง ⚙️ มุมขวาบน', 'ใส่ URL ของ Apps Script (ขึ้นต้น https://script.google.com/ ลงท้าย /exec)', 'ใส่รหัสผ่านซิงค์ (ถ้าตั้งไว้) แล้วกด "บันทึก URL & ซิงค์ทันที"'] },
+            'offline': { short: 'ออฟไลน์', tone: 'gray', title: 'เครื่องนี้ไม่มีอินเทอร์เน็ต',
+                why: 'ข้อมูลที่บันทึกถูกเก็บในเครื่องแล้ว ไม่หาย',
+                steps: ['เชื่อมต่อ Wi-Fi หรืออินเทอร์เน็ตมือถือ', 'แอปจะส่งข้อมูลที่ค้างให้เองอัตโนมัติเมื่อออนไลน์'] },
+            'network': { short: 'ติดต่อ Google ไม่ได้', tone: 'red', title: 'ติดต่อ Google Apps Script ไม่ได้ (ไม่มีการตอบกลับ)',
+                why: 'อินเทอร์เน็ตทำงานอยู่ แต่ Google ไม่ตอบ มักเกิดจาก URL หรือสิทธิ์การเข้าถึงไม่ถูกต้อง',
+                steps: ['ตรวจ URL ว่าคัดลอกครบและลงท้าย /exec (ไม่ใช่ /dev)', 'ใน Apps Script: Deploy → Manage deployments ตั้ง "Execute as" = Me และ "Who has access" = Anyone แล้ว Deploy ใหม่', 'ลองเปิด URL ในเบราว์เซอร์ ควรเห็นข้อความ "Our Wallet script v8 is running"', 'ถ้าเครือข่ายบล็อก Google ลองสลับ Wi-Fi / ข้อมูลมือถือ'] },
+            'timeout': { short: 'Google ตอบช้า', tone: 'red', title: 'Google ตอบช้าเกิน 30 วินาที',
+                why: 'ข้อมูลยังไม่ถูกส่ง แต่เก็บในเครื่องแล้ว',
+                steps: ['รอสักครู่ แอปจะลองใหม่เอง หรือแตะ "ลองใหม่ตอนนี้"', 'ถ้าเพิ่ง Deploy ใหม่ ครั้งแรกอาจช้า ให้เปิดชีตแล้วกดเมนู 💖 Our Wallet → จัดรูปแบบและสร้างแดชบอร์ดใหม่ หนึ่งครั้ง', 'ถ้าเกิดบ่อย อาจเพราะชีตมีข้อมูลมาก แจ้งผู้พัฒนา'] },
+            'html': { short: 'Google ตอบผิดปกติ', tone: 'red', title: 'Google ตอบกลับมาเป็นหน้าเว็บ ไม่ใช่ข้อมูลของแอป',
+                why: 'มักเกิดจากสคริปต์เกิดข้อผิดพลาด หรือสิทธิ์เข้าถึงไม่ใช่ Anyone หรือ URL ไม่ใช่ของสคริปต์นี้',
+                steps: ['เปิด URL ในเบราว์เซอร์ ถ้าเจอหน้าให้ล็อกอิน แปลว่าต้องตั้ง "Who has access" = Anyone แล้ว Deploy ใหม่', 'เปิด Apps Script → Executions ดู error ล่าสุด', 'ตรวจว่าใช้ URL ของ Web app (ลงท้าย /exec) ที่ Deploy จากสคริปต์ในชีตนี้'] },
+            'outdated': { short: 'สคริปต์เก่า · ต้อง Deploy ใหม่', tone: 'red', title: 'สคริปต์ Google ยังเป็นเวอร์ชันเก่า',
+                why: 'แอปจะไม่ส่งข้อมูลไปสคริปต์เก่า เพื่อไม่ให้เกิดแถวขยะในชีต ข้อมูลที่บันทึกถูกเก็บรอในเครื่อง',
+                steps: ['เปิดไฟล์ Code.gs ล่าสุดจาก GitHub วางทับโค้ดใน Apps Script แล้ว Save', 'Deploy → Manage deployments → ไอคอนดินสอ → Version: New version → Deploy', 'URL เดิมใช้ต่อได้ ไม่ต้องเปลี่ยน แล้วกด "ลองใหม่ตอนนี้"'] },
+            'unauthorized': { short: 'รหัสไม่ถูกต้อง', tone: 'red', title: 'รหัสผ่านซิงค์ไม่ตรงกับในสคริปต์',
+                why: 'สคริปต์ตั้งรหัสป้องกันไว้ (WALLET_KEY) แต่รหัสที่ใส่ในแอปไม่ตรง',
+                steps: ['เปิด Apps Script → Project Settings → Script properties ดูค่า WALLET_KEY', 'แตะเฟือง ⚙️ ใส่รหัสให้ตรงกันทุกตัวอักษร (ระวังช่องว่าง/ตัวพิมพ์เล็กใหญ่)', 'กด "บันทึก URL & ซิงค์ทันที"'] },
+            'lock': { short: 'ชีตไม่ว่าง ลองใหม่', tone: 'red', title: 'ชีตกำลังถูกเขียนพร้อมกันหลายเครื่อง',
+                why: 'มีการบันทึกซ้อนกัน ข้อมูลของคุณยังอยู่ในคิว',
+                steps: ['รอสักครู่ แอปจะลองส่งใหม่เอง', 'ถ้าเกิดซ้ำๆ ตรวจว่าไม่มีใครกำลังรันสคริปต์ค้างอยู่ใน Apps Script → Executions'] },
+            'quota': { short: 'โควตา Google เต็ม', tone: 'red', title: 'โควตาของ Google Apps Script เต็มชั่วคราว',
+                why: 'ส่งข้อมูลถี่เกินกำหนดของ Google ข้อมูลเก็บในเครื่องไม่หาย',
+                steps: ['รอประมาณ 5–10 นาที โควตาจะรีเซ็ตเอง', 'ปิดแอปที่เปิดค้างไว้หลายเครื่องที่ไม่ได้ใช้'] },
+            'no-spreadsheet': { short: 'สคริปต์ไม่ได้ผูกกับชีต', tone: 'red', title: 'สคริปต์ไม่ได้ผูกกับ Google Sheet',
+                why: 'สคริปต์ถูกสร้างแยกต่างหาก ไม่ได้สร้างจากในไฟล์ชีต',
+                steps: ['เปิดไฟล์ Google Sheet ของคุณ → Extensions → Apps Script แล้ววางโค้ดที่นั่น', 'Deploy เป็น Web app แล้วใช้ URL ใหม่ในแอป'] },
+            'server': { short: 'ชีตแจ้งข้อผิดพลาด', tone: 'red', title: 'ชีตตอบกลับว่ามีข้อผิดพลาด',
+                why: 'สคริปต์รับข้อมูลแล้วแต่บันทึกไม่สำเร็จ ดูข้อความด้านล่าง',
+                steps: ['อ่านข้อความรายละเอียดด้านล่างเพื่อดูสาเหตุ', 'เปิด Apps Script → Executions ดู error ของการรันล่าสุด', 'ถ้าข้อความบอกว่าไม่รู้จักคำสั่งหรือข้อมูลไม่ครบ ให้ Deploy โค้ด Code.gs ล่าสุดแล้วลองใหม่'] }
+        };
+        const codeOfError = (err) => {
+            if (err && err.syncCode) return err.syncCode;
+            if (navigator.onLine === false) return 'offline';
+            if (err && err.name === 'AbortError') return 'timeout';
+            return 'network';
+        };
+        const codeOfResult = (r) => {
+            if (!r) return 'html';
+            if (r.code === 'unauthorized') return 'unauthorized';
+            if (r.code === 'lock_timeout') return 'lock';
+            if (r.code === 'no_spreadsheet') return 'no-spreadsheet';
+            if (/too many times|quota|limit exceeded|rate limit/i.test(r.message || '')) return 'quota';
+            return 'server';
+        };
+        const failSync = (code, detail, kind) => {
+            syncFailure = { code, detail: detail || '', kind: kind || 'send', at: Date.now() };
+            if (code !== lastNotifiedCode) {
+                lastNotifiedCode = code;
+                const E = SYNC_ERRORS[code] || SYNC_ERRORS.server;
+                if (code !== 'offline') window.showToast(`${syncQueue.length ? 'บันทึกในเครื่องแล้ว แต่' : ''}ซิงค์กับ Google Sheet ไม่ได้: ${E.short} (แตะแถบสถานะดูวิธีแก้)`, 'error');
+            }
+            updateSyncStatus();
+        };
+        const clearSync = (kind) => {
+            if (!syncFailure) return;
+            // การดึงข้อมูลสำเร็จแปลว่าเชื่อมต่อ/รหัสผ่านใช้ได้ แต่ไม่ได้แปลว่าชีตรับข้อมูลที่ส่งได้ (เช่น ชีตแจ้ง error, โควตาเต็ม)
+            const connectivity = ['offline', 'network', 'timeout', 'html', 'outdated', 'unauthorized', 'no-spreadsheet'];
+            if (kind === 'pull' && syncFailure.kind === 'send' && !connectivity.includes(syncFailure.code)) return;
+            syncFailure = null; lastNotifiedCode = null;
+        };
+        const resetSyncState = () => { knownRev = 0; scriptApi = null; syncFailure = null; lastNotifiedCode = null; };
+
+        // URL ต้องเป็นลิงก์ Web app ที่ลงท้าย /exec
+        const validateUrl = (url) => {
+            if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url)) return null;
+            if (!/^https:\/\/script\.google\.com\//.test(url)) return 'URL ต้องขึ้นต้นด้วย https://script.google.com/ (คัดลอกจาก Deploy → Web app → URL)';
+            if (/\/dev(\?.*)?$/.test(url)) return 'นี่เป็นลิงก์ทดสอบ (/dev) ต้องใช้ลิงก์หลัง Deploy ที่ลงท้ายด้วย /exec';
+            if (!/\/exec$/.test(url)) return 'URL ต้องลงท้ายด้วย /exec';
+            return null;
+        };
+
+        // เช็กเวอร์ชันสคริปต์ (สคริปต์เก่าจะบันทึกคำขอซิงค์เป็นแถวขยะ จึงห้ามส่งข้อมูลไปจนกว่าจะเป็นเวอร์ชันใหม่)
         const checkScript = async (url) => {
             const ctrl = new AbortController();
             const timer = setTimeout(() => ctrl.abort(), 20000);
             try {
                 const res = await fetch(url, { signal: ctrl.signal });
-                return /Our Wallet script v\d+/.test(await res.text());
+                const text = await res.text();
+                const m = text.match(/Our Wallet script v(\d+)/);
+                if (m) return Number(m[1]);
+                if (/Our Wallet/.test(text)) return 0;
+                const e = new Error('not our script'); e.syncCode = 'html';
+                e.detail = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+                throw e;
             } finally { clearTimeout(timer); }
         };
+
+        // ส่งคำขอไป Apps Script และอ่านผลตอบกลับ (ส่งรหัสผ่านใน body ไม่ใส่ใน URL)
         const callSheets = async (payload, url = window.sheetsWebhookUrl, key = window.sheetsKey, skipCheck = false) => {
             if (!skipCheck) {
-                if (scriptOk === null) { scriptOk = await checkScript(url); scriptOutdated = !scriptOk; updateSyncStatus(); }
-                if (!scriptOk) throw new Error('script outdated');
+                if (scriptApi === null) scriptApi = await checkScript(url);
+                if (scriptApi < REQUIRED_API) { const e = new Error('script outdated'); e.syncCode = 'outdated'; throw e; }
             }
             const ctrl = new AbortController();
             const timer = setTimeout(() => ctrl.abort(), 30000);
             try {
                 const res = await fetch(url, { method: 'POST', body: JSON.stringify({ ...payload, key }), signal: ctrl.signal });
-                return await res.json();
+                const text = await res.text();
+                try { return JSON.parse(text); }
+                catch (pe) { const e = new Error('non-json'); e.syncCode = 'html'; e.detail = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140); throw e; }
             } finally { clearTimeout(timer); }
         };
 
@@ -460,26 +557,33 @@
             return Promise.resolve();
         };
 
+        // ส่งทีละชุด (สูงสุด 20 รายการต่อคำขอ) เร็วกว่าส่งทีละรายการมาก
         const flushQueue = async () => {
             if (isFlushing || !window.sheetsWebhookUrl || syncQueue.length === 0) return;
             isFlushing = true; updateSyncStatus();
             try {
                 while (syncQueue.length > 0) {
-                    const item = syncQueue[0];
-                    const result = await callSheets(item.p);
-                    if (result && result.status === 'success') {
-                        syncQueue.shift(); saveQueue();
-                        sendError = false; authError = false; lastWriteAt = Date.now();
-                    } else if (result && result.code === 'unauthorized') {
-                        authError = true; break;
-                    } else {
-                        // เซิร์ฟเวอร์ตอบ error: ลองใหม่ได้ 5 ครั้ง แล้วทิ้งรายการนี้ เพื่อไม่ให้คิวติดตลอด
-                        item.tries++;
-                        if (item.tries >= 5) { syncQueue.shift(); window.showToast('ส่งรายการหนึ่งไป Sheets ไม่สำเร็จ ข้ามรายการนี้', 'error'); }
-                        saveQueue(); sendError = true; break;
+                    const batch = syncQueue.slice(0, 20);
+                    const result = await callSheets({ action: 'batch', items: batch.map(q => q.p) });
+                    if (!result || result.status !== 'success' || !Array.isArray(result.results)) {
+                        failSync(codeOfResult(result), result && result.message, 'send'); break;
                     }
+                    const keep = []; let firstBad = null, dropped = null;
+                    batch.forEach((q, i) => {
+                        const r = result.results[i];
+                        if (r && r.status === 'success') return;
+                        q.tries++;
+                        firstBad = firstBad || r || { message: 'ไม่มีผลตอบกลับของรายการนี้' };
+                        // ชีตปฏิเสธซ้ำ 5 ครั้ง: ทิ้งรายการนี้เพื่อไม่ให้คิวติดตลอด และบอกสาเหตุ
+                        if (q.tries >= 5) dropped = (r && r.message) || 'ไม่ทราบสาเหตุ'; else keep.push(q);
+                    });
+                    syncQueue = keep.concat(syncQueue.slice(batch.length));
+                    saveQueue();
+                    if (dropped) window.showToast('ข้ามรายการหนึ่งที่ชีตไม่รับ: ' + dropped, 'error');
+                    if (firstBad) { failSync(codeOfResult(firstBad), firstBad.message, 'send'); break; }
+                    clearSync('send'); lastWriteAt = Date.now(); lastSentAt = Date.now();
                 }
-            } catch (err) { sendError = true; }
+            } catch (err) { failSync(codeOfError(err), err.detail, 'send'); }
             finally { isFlushing = false; updateSyncStatus(); }
         };
 
@@ -488,21 +592,22 @@
             if (!el) return;
             const n = syncQueue.length;
             const online = navigator.onLine !== false;
+            const E = syncFailure ? (SYNC_ERRORS[syncFailure.code] || SYNC_ERRORS.server) : null;
+            const redOrGray = (e) => e.tone === 'gray' ? 'bg-gray-200 text-gray-600' : 'bg-red-100 text-red-600';
             let color, icon, text;
-            if (!window.sheetsWebhookUrl) { color = 'bg-gray-100 text-gray-500'; icon = 'ph-device-mobile'; text = 'ใช้ในเครื่อง'; }
-            else if (scriptOutdated) { color = 'bg-red-100 text-red-600'; icon = 'ph-warning-circle'; text = 'สคริปต์เก่า · ต้อง Deploy ใหม่'; }
-            else if (authError) { color = 'bg-red-100 text-red-600'; icon = 'ph-lock-key'; text = 'รหัสไม่ถูกต้อง'; }
+            if (!window.sheetsWebhookUrl) { color = 'bg-gray-100 text-gray-500'; icon = 'ph-device-mobile'; text = 'ใช้ในเครื่อง · ยังไม่ซิงค์'; }
+            else if (E && ['outdated', 'unauthorized', 'no-spreadsheet'].includes(syncFailure.code)) { color = redOrGray(E); icon = 'ph-warning-circle'; text = E.short; }
             else if (n > 0 && isFlushing) { color = 'bg-amber-100 text-amber-700'; icon = 'ph-arrows-clockwise animate-spin'; text = `กำลังส่ง ${n}`; }
             else if (n > 0 && !online) { color = 'bg-gray-200 text-gray-600'; icon = 'ph-wifi-slash'; text = `ออฟไลน์ · รอส่ง ${n}`; }
-            else if (n > 0 && sendError) { color = 'bg-red-100 text-red-600'; icon = 'ph-warning-circle'; text = `ส่งไม่สำเร็จ ${n} · แตะลองใหม่`; }
+            else if (n > 0 && E) { color = redOrGray(E); icon = 'ph-warning-circle'; text = `${E.short} · รอส่ง ${n}`; }
             else if (n > 0) { color = 'bg-amber-100 text-amber-700'; icon = 'ph-clock'; text = `รอส่ง ${n}`; }
-            else if (pullError) { color = online ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600'; icon = online ? 'ph-warning-circle' : 'ph-wifi-slash'; text = online ? 'ซิงค์ไม่ได้ · แตะลองใหม่' : 'ออฟไลน์'; }
+            else if (E) { color = redOrGray(E); icon = syncFailure.code === 'offline' ? 'ph-wifi-slash' : 'ph-warning-circle'; text = E.short; }
             else {
                 color = 'bg-green-100 text-green-700'; icon = 'ph-check-circle';
                 text = lastSyncAt ? 'ซิงค์แล้ว ' + new Date(lastSyncAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : 'เชื่อมต่อแล้ว';
             }
             el.className = `shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold whitespace-nowrap ${color}`;
-            el.innerHTML = `<i class="ph-bold ${icon}"></i><span>${text}</span>`;
+            el.innerHTML = `<i class="ph-bold ${icon}"></i><span>${escapeHTML(text)}</span>`;
         }
 
         const escapeHTML = (str) => {
@@ -552,7 +657,7 @@
             document.getElementById('expBank').addEventListener('change', () => { expBankManual = true; });
             document.getElementById('incDesc').addEventListener('change', (e) => prefillFromHistory('income', e.target.value));
             // แตะพื้นหลัง/กด Esc เพื่อปิดหน้าต่างที่ไม่ใช่ฟอร์มกรอกข้อมูล (กันข้อมูลที่กำลังพิมพ์หาย)
-            const closeable = () => ['debtModal', 'copyBillsModal', 'budgetModal', 'sheetsModal'].some(id => document.getElementById(id).classList.contains('flex'));
+            const closeable = () => ['debtModal', 'copyBillsModal', 'budgetModal', 'sheetsModal', 'syncModal'].some(id => document.getElementById(id).classList.contains('flex'));
             document.getElementById('modalContainer').addEventListener('click', (e) => { if (e.target.id === 'modalContainer' && closeable()) window.closeModal(); });
             document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && closeable()) window.closeModal(); });
             document.getElementById('searchInput').addEventListener('input', (e) => { searchQuery = e.target.value.trim().toLowerCase(); renderDashboard(); });
@@ -686,7 +791,7 @@
         window.closeModal = () => {
             currentEditId = null;
             document.getElementById('modalContainer').classList.add('hidden'); document.getElementById('modalContainer').classList.remove('flex');
-            ['incomeModal', 'expenseModal', 'sheetsModal', 'debtModal', 'budgetModal', 'copyBillsModal'].forEach(id => {
+            ['incomeModal', 'expenseModal', 'sheetsModal', 'debtModal', 'budgetModal', 'copyBillsModal', 'syncModal'].forEach(id => {
                 document.getElementById(id).classList.add('hidden'); document.getElementById(id).classList.remove('flex');
             });
         };
@@ -840,6 +945,7 @@
         };
 
         window.saveAndSync = async (data, modalId) => {
+            const wasEdit = !!currentEditId;
             window.closeModal();
             highlightId = data.id;
             const index = allTransactions.findIndex(t => t.id === data.id);
@@ -849,56 +955,77 @@
 
             localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
             renderDashboard();
-            window.showToast(currentEditId ? "อัปเดตข้อมูลแล้ว" : "บันทึกสำเร็จ", "success");
+            window.showToast(wasEdit ? "อัปเดตข้อมูลแล้ว" : "บันทึกสำเร็จ", "success");
             currentEditId = null;
 
             sendToSheets(data);
         };
 
-        window.saveSheetsUrl = () => {
-            const url = document.getElementById('sheetsUrlInput').value.trim();
-            if (url) {
-                window.sheetsWebhookUrl = url;
-                localStorage.setItem('sheetsWebhookUrl', url);
-                window.sheetsKey = document.getElementById('sheetsKeyInput').value.trim();
-                localStorage.setItem('sheetsKey', window.sheetsKey);
-                authError = false; sendError = false; pullError = false; scriptOk = null; scriptOutdated = false;
-                window.closeModal();
-                window.showToast("บันทึกการตั้งค่าแล้ว", "success");
-                updateSyncStatus();
-                flushQueue();
-                window.syncFromSheets();
-            }
+        const showConn = (msg, good) => {
+            const box = document.getElementById('connResult');
+            box.classList.remove('hidden', 'bg-green-50', 'text-green-700', 'bg-red-50', 'text-red-600', 'bg-gray-100', 'text-gray-600');
+            box.classList.add(...(good === true ? ['bg-green-50', 'text-green-700'] : good === false ? ['bg-red-50', 'text-red-600'] : ['bg-gray-100', 'text-gray-600']));
+            box.textContent = msg;
+        };
+        const explainText = (code, detail) => {
+            const E = SYNC_ERRORS[code] || SYNC_ERRORS.server;
+            return `❌ ${E.title}\n${E.why}\n${detail ? 'รายละเอียด: ' + detail + '\n' : ''}\nวิธีแก้:\n` + E.steps.map((t, i) => `${i + 1}. ${t}`).join('\n');
         };
 
-        window.syncFromSheets = async (silent = false) => {
+        window.saveSheetsUrl = () => {
+            const url = document.getElementById('sheetsUrlInput').value.trim().replace(/^["']|["']$/g, '');
+            if (!url) { showConn('❌ กรอก URL ของ Apps Script ก่อน (ขึ้นต้น https://script.google.com/ ลงท้าย /exec)', false); return; }
+            const bad = validateUrl(url);
+            if (bad) { showConn('❌ ' + bad, false); window.showToast(bad, 'error'); return; }
+            window.sheetsWebhookUrl = url;
+            localStorage.setItem('sheetsWebhookUrl', url);
+            window.sheetsKey = document.getElementById('sheetsKeyInput').value.trim();
+            localStorage.setItem('sheetsKey', window.sheetsKey);
+            resetSyncState();
+            window.closeModal();
+            window.showToast("บันทึกการตั้งค่าแล้ว กำลังเชื่อมต่อ…", "success");
+            updateSyncStatus();
+            flushQueue();
+            window.syncFromSheets(false, true);
+        };
+
+        window.syncFromSheets = async (silent = false, force = false) => {
             if (silent !== true) silent = false;
             if (!window.sheetsWebhookUrl) return;
             if (isSyncing) return;
             isSyncing = true; if (!silent) document.querySelector('#syncBtn i').classList.add('animate-spin');
             try {
-                const result = await callSheets({ action: 'sync' });
-                if (result.code === 'unauthorized') {
-                    authError = true;
-                    if (!silent) window.showToast("รหัสผ่านซิงค์ไม่ถูกต้อง", "error");
+                const result = await callSheets({ action: 'sync', since: force ? 0 : knownRev });
+                if (result.status !== 'success') { failSync(codeOfResult(result), result.message, 'pull'); return; }
+                if (result.unchanged) {
+                    clearSync('pull'); lastSyncAt = Date.now();
+                    if (!silent) window.showToast("ซิงค์แล้ว ไม่มีข้อมูลใหม่", "success");
                     return;
                 }
-                authError = false;
-                if (result.status !== 'success' || !Array.isArray(result.data)) { pullError = true; return; }
-                pullError = false; lastSyncAt = Date.now();
-                // ข้ามถ้ามีข้อมูลรอส่งอยู่ เพื่อไม่ให้ข้อมูลใหม่ในเครื่องถูกทับ
+                if (!Array.isArray(result.data)) { failSync('server', 'ชีตตอบกลับข้อมูลไม่ครบ (ลอง Deploy โค้ดล่าสุด)', 'pull'); return; }
+                clearSync('pull'); lastSyncAt = Date.now();
+
+                // ข้ามถ้ามีข้อมูลรอส่งอยู่ เพื่อไม่ให้ข้อมูลใหม่ในเครื่องถูกทับ (รอบถัดไปจะดึงใหม่)
                 if (syncQueue.length === 0 && !isFlushing && Date.now() - lastWriteAt > 1500) {
-                    // ครั้งแรกที่เชื่อม Sheets ที่ยังว่าง: อัปโหลดข้อมูลในเครื่องขึ้นไปก่อน แทนที่จะลบทิ้ง
+                    // ครั้งแรกที่เชื่อมชีตนี้: เอาข้อมูลที่มีเฉพาะในเครื่องอัปโหลดขึ้นไปรวมกับของในชีต ไม่ให้ทับกันหาย
                     const seedKey = 'sheetsSeeded_' + window.sheetsWebhookUrl;
                     if (!localStorage.getItem(seedKey)) {
                         localStorage.setItem(seedKey, '1');
-                        if (result.data.length === 0 && allTransactions.length > 0) {
-                            for (const t of allTransactions) await sendToSheets(t);
-                            for (let k = 0; k < localStorage.length; k++) {
-                                const key = localStorage.key(k);
-                                if (key && key.startsWith('budget_')) await sendToSheets({ action: 'budget', month: key.slice(7), amount: Number(localStorage.getItem(key)) });
-                            }
-                            if (!silent) window.showToast("อัปโหลดข้อมูลขึ้น Sheets แล้ว", "success");
+                        const remoteIds = new Set(result.data.map(t => t.id));
+                        const localOnly = allTransactions.filter(t => !remoteIds.has(t.id));
+                        const remoteBudgets = result.budgets || {};
+                        const budgetKeys = [];
+                        for (let k = 0; k < localStorage.length; k++) {
+                            const key = localStorage.key(k);
+                            if (key && key.startsWith('budget_') && !(key.slice(7) in remoteBudgets)) budgetKeys.push(key);
+                        }
+                        if (localOnly.length || budgetKeys.length) {
+                            allTransactions = [...result.data, ...localOnly];
+                            localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+                            for (const t of localOnly) await sendToSheets(t);
+                            for (const key of budgetKeys) await sendToSheets({ action: 'budget', month: key.slice(7), amount: Number(localStorage.getItem(key)) });
+                            renderDashboard();
+                            window.showToast(`อัปโหลดข้อมูลในเครื่อง ${localOnly.length} รายการขึ้น Sheets แล้ว`, "success");
                             return;
                         }
                     }
@@ -918,60 +1045,87 @@
                             if (localStorage.getItem('budget_' + m) !== String(v)) { localStorage.setItem('budget_' + m, String(v)); changed = true; }
                         });
                     }
+                    knownRev = result.rev || 0;
                     if (ensureRecurring()) changed = true;
                     if (changed) renderDashboard();
                     if (!silent) window.showToast("ซิงค์สำเร็จ", "success");
                 }
-            } catch (error) { pullError = true; }
+            } catch (error) { failSync(codeOfError(error), error.detail, 'pull'); }
             finally { isSyncing = false; updateSyncStatus(); if (!silent) document.querySelector('#syncBtn i').classList.remove('animate-spin'); }
         };
 
-        // --- ซิงค์อัตโนมัติทุก 5 วินาที (เฉพาะตอนเปิดหน้าจอและไม่ได้เปิดฟอร์มอยู่) ---
+        // --- ซิงค์อัตโนมัติ: เช็กทุก 3 วินาที (ชีตตอบสั้นๆ ถ้าไม่มีอะไรเปลี่ยน) และดึงเต็มทุก ~1 นาที ---
+        let syncTick = 0;
         const autoSync = async () => {
             if (document.hidden) return;
-            if (scriptOutdated) scriptOk = null; // เช็คใหม่เมื่อ Deploy เสร็จ
-            await flushQueue(); // ส่งข้อมูลที่ค้างก่อนเสมอ แม้เปิดฟอร์มอยู่
+            syncTick++;
+            if (syncFailure && syncFailure.code === 'outdated') scriptApi = null; // เช็กใหม่เมื่อ Deploy เสร็จ
             if (ensureRecurring()) renderDashboard();
+            await flushQueue(); // ส่งข้อมูลที่ค้างก่อนเสมอ แม้เปิดฟอร์มอยู่
             if (!document.getElementById('modalContainer').classList.contains('hidden')) return;
-            window.syncFromSheets(true);
+            window.syncFromSheets(true, syncTick % 20 === 0);
         };
-        setInterval(autoSync, 5000);
+        setInterval(autoSync, 3000);
         document.addEventListener('visibilitychange', autoSync);
         window.addEventListener('online', autoSync);
-        window.addEventListener('offline', updateSyncStatus);
+        window.addEventListener('offline', () => { if (syncQueue.length) failSync('offline', '', 'send'); updateSyncStatus(); });
 
         // ทดสอบ: เช็กเวอร์ชันสคริปต์ รหัสผ่าน แล้วลองเขียน-อ่าน-ลบแถวทดสอบ (ไม่ทิ้งข้อมูลในชีต)
         window.testConnection = async () => {
-            const box = document.getElementById('connResult');
-            const show = (msg, good) => {
-                box.classList.remove('hidden', 'bg-green-50', 'text-green-700', 'bg-red-50', 'text-red-600', 'bg-gray-100', 'text-gray-600');
-                box.classList.add(...(good === true ? ['bg-green-50', 'text-green-700'] : good === false ? ['bg-red-50', 'text-red-600'] : ['bg-gray-100', 'text-gray-600']));
-                box.textContent = msg;
-            };
-            const url = document.getElementById('sheetsUrlInput').value.trim();
+            const url = document.getElementById('sheetsUrlInput').value.trim().replace(/^["']|["']$/g, '');
             const key = document.getElementById('sheetsKeyInput').value.trim();
-            if (!url) { show('กรอก URL ของ Apps Script ก่อน', false); return; }
-            show('กำลังทดสอบ…');
+            if (!url) { showConn('❌ กรอก URL ของ Apps Script ก่อน', false); return; }
+            const bad = validateUrl(url);
+            if (bad) { showConn('❌ ' + bad, false); return; }
+            showConn('กำลังทดสอบ…');
             try {
-                if (!(await checkScript(url))) { show('❌ เชื่อมต่อได้ แต่สคริปต์ยังเป็นเวอร์ชันเก่า\nวางโค้ด Code.gs ใหม่ แล้ว Deploy → Manage deployments → Edit → New version', false); return; }
+                const api = await checkScript(url);
+                if (api < REQUIRED_API) { showConn(explainText('outdated'), false); return; }
                 const r = await callSheets({ action: 'selftest' }, url, key, true);
-                if (r.code === 'unauthorized') { show('❌ เชื่อมต่อได้ แต่รหัสผ่านไม่ตรงกับ WALLET_KEY ใน Apps Script', false); return; }
+                if (r.code === 'unauthorized') { showConn(explainText('unauthorized'), false); return; }
                 if (r.status === 'success') {
-                    show(`✅ เชื่อมต่อสำเร็จ\nเขียน/อ่าน/ลบแถวทดสอบในชีตได้\nข้อมูลในชีตตอนนี้ ${r.rows} แถว\nรหัสผ่านป้องกัน: ${r.keyProtected ? 'ตั้งแล้ว' : 'ยังไม่ตั้ง (ใครรู้ URL เข้าถึงข้อมูลได้)'}\n${r.version}`, true);
+                    showConn(`✅ เชื่อมต่อสำเร็จ\nเขียน/อ่าน/ลบแถวทดสอบในชีตได้\nข้อมูลในชีตตอนนี้ ${r.rows} แถว\nรหัสผ่านป้องกัน: ${r.keyProtected ? 'ตั้งแล้ว' : 'ยังไม่ตั้ง (ใครรู้ URL เข้าถึงข้อมูลได้)'}\n${r.version}`, true);
                 } else {
-                    show(`❌ ชีตตอบกลับแต่บันทึกไม่สำเร็จ\nเขียน:${r.write ? 'ได้' : 'ไม่ได้'} อ่าน:${r.read ? 'ได้' : 'ไม่ได้'} ลบ:${r.delete ? 'ได้' : 'ไม่ได้'}\n${r.message || ''}`, false);
+                    showConn(explainText(codeOfResult(r), `${r.message || ''} (เขียน:${r.write ? 'ได้' : 'ไม่ได้'} อ่าน:${r.read ? 'ได้' : 'ไม่ได้'} ลบ:${r.delete ? 'ได้' : 'ไม่ได้'})`.trim()), false);
                 }
-            } catch (err) {
-                show('❌ เชื่อมต่อไม่ได้\nตรวจว่า URL ลงท้าย /exec และ Deploy เป็น Execute as: Me, Who has access: Anyone', false);
-            }
+            } catch (err) { showConn(explainText(codeOfError(err), err.detail), false); }
         };
 
         window.manualSync = async () => {
             if (!window.sheetsWebhookUrl) { window.openModal('sheetsModal'); return; }
-            authError = false; sendError = false; scriptOk = null;
+            scriptApi = null;
             await flushQueue();
-            window.syncFromSheets();
+            await window.syncFromSheets(false, true);
         };
+
+        // ===== หน้า "ตรวจสอบการซิงค์": บอกสถานะ สาเหตุ และวิธีแก้ =====
+        const fmtTime = (ts) => ts ? new Date(ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
+        function renderSyncModal() {
+            const url = window.sheetsWebhookUrl, n = syncQueue.length;
+            const code = !url ? 'no-url' : (syncFailure ? syncFailure.code : null);
+            const E = code ? (SYNC_ERRORS[code] || SYNC_ERRORS.server) : null;
+            let head;
+            if (E) {
+                const cls = E.tone === 'gray' ? 'bg-gray-100 text-gray-700' : 'bg-red-50 text-red-700';
+                head = `<div class="${cls} rounded-2xl p-4 mb-4"><p class="font-bold">${escapeHTML(E.title)}</p><p class="text-sm mt-1">${escapeHTML(E.why)}</p>${syncFailure && syncFailure.detail ? `<p class="text-xs mt-2 break-words opacity-80">รายละเอียด: ${escapeHTML(syncFailure.detail)}</p>` : ''}</div>
+                    <p class="text-sm font-semibold text-gray-700 mb-2">วิธีแก้</p>
+                    <ol class="list-decimal pl-5 space-y-1.5 text-sm text-gray-600 mb-4">${E.steps.map(t => `<li>${escapeHTML(t)}</li>`).join('')}</ol>`;
+            } else if (n > 0) {
+                head = `<div class="bg-amber-50 text-amber-700 rounded-2xl p-4 mb-4"><p class="font-bold">กำลังรอส่ง ${n} รายการ</p><p class="text-sm mt-1">ข้อมูลเก็บในเครื่องแล้ว แอปกำลังส่งขึ้น Google Sheet</p></div>`;
+            } else {
+                head = `<div class="bg-green-50 text-green-700 rounded-2xl p-4 mb-4"><p class="font-bold">✅ ทุกอย่างปกติ</p><p class="text-sm mt-1">ข้อมูลที่บันทึกถูกส่งขึ้น Google Sheet แล้ว และแอปเช็กข้อมูลใหม่จากอีกเครื่องทุก 3 วินาที</p></div>`;
+            }
+            const maskedUrl = url ? url.replace(/(macros\/s\/)(.{6}).*(\/exec)/, '$1$2…$3') : '(ยังไม่ได้ตั้ง)';
+            const row = (k, v) => `<div class="flex justify-between gap-3 py-1.5 border-b border-gray-100 text-xs"><span class="text-gray-500 shrink-0">${k}</span><span class="text-gray-800 text-right break-all">${v}</span></div>`;
+            document.getElementById('syncModalBody').innerHTML = head +
+                `<div class="mb-4">${row('รอส่ง', n + ' รายการ')}${row('ซิงค์ล่าสุด', fmtTime(lastSyncAt))}${row('ส่งข้อมูลล่าสุด', fmtTime(lastSentAt))}${row('URL', escapeHTML(maskedUrl))}${row('รหัสผ่านซิงค์ (ในเครื่องนี้)', window.sheetsKey ? 'ตั้งไว้แล้ว' : 'ยังไม่ได้ใส่')}${row('เวอร์ชันแอป', APP_VERSION)}</div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" onclick="window.retrySync()" class="py-3 rounded-xl text-white bg-primary font-semibold text-sm">ลองใหม่ตอนนี้</button>
+                    <button type="button" onclick="window.closeModal(); window.openModal('sheetsModal')" class="py-3 rounded-xl text-green-700 bg-green-50 border border-green-200 font-semibold text-sm">เปิดตั้งค่า / ทดสอบ</button>
+                </div>`;
+        }
+        window.openSyncStatus = () => { renderSyncModal(); window.openModal('syncModal'); };
+        window.retrySync = async () => { await window.manualSync(); renderSyncModal(); };
 
         function renderDebtModal() {
             const debtListContainer = document.getElementById('debtList');

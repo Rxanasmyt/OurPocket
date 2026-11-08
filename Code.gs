@@ -26,7 +26,9 @@ var SHEET_PLAN = 'ลำดับจ่าย';
 var SHEET_MONTH = 'รายเดือน';
 var SHEET_SET = 'ตั้งค่า';
 var SETUP_VERSION = 'v7';
-var SCRIPT_VERSION = 'Our Wallet script ' + SETUP_VERSION;
+// API_VERSION: เพิ่มทุกครั้งที่รูปแบบการคุยกับแอปเปลี่ยน (แอปจะไม่ส่งข้อมูลถ้าสคริปต์เก่ากว่าที่แอปต้องการ)
+var API_VERSION = 8;
+var SCRIPT_VERSION = 'Our Wallet script v' + API_VERSION;
 
 var EXPENSE_CATEGORIES = ['อาหาร', 'เดินทาง', 'ช้อปปิ้ง', 'ที่พัก', 'สุขภาพ', 'หนี้สิน', 'อื่นๆ'];
 var PEOPLE = ['Anas', 'Phada'];
@@ -103,6 +105,11 @@ function colLetter_(n) {
   while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
   return s;
 }
+
+// เลขรุ่นของข้อมูล: เพิ่มทุกครั้งที่มีการเขียน/ลบ ใช้ให้แอปเช็กว่ามีอะไรเปลี่ยนหรือไม่โดยไม่ต้องอ่านทั้งชีต (ซิงค์เร็ว)
+function readRev_() { return Number(PropertiesService.getScriptProperties().getProperty('rev')) || 0; }
+function bumpRev_() { var p = PropertiesService.getScriptProperties(); var r = (Number(p.getProperty('rev')) || 0) + 1; p.setProperty('rev', String(r)); return r; }
+function fail_(code, message) { return {status: "error", code: code, message: message}; }
 
 function walletKey_() { return PropertiesService.getScriptProperties().getProperty('WALLET_KEY') || ''; }
 function authorized_(key) { var k = walletKey_(); return !k || String(key || '') === k; }
@@ -205,7 +212,7 @@ function purgeJunkRows_(sh) {
 function syncPayload_(ss) {
   ensureSetup_(ss);
   var sh = getDataSheet_(ss);
-  return {status: "success", data: readAllData_(sh, headerMap_(sh)), budgets: readBudgets_(ss)};
+  return {status: "success", data: readAllData_(sh, headerMap_(sh)), budgets: readBudgets_(ss), rev: readRev_()};
 }
 
 // ------------------------------------------------------------
@@ -224,47 +231,70 @@ function doGet(e) {
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
+  var locked = false;
   try {
-    if (!e || !e.postData) return json_({status: "error", message: "no data"});
-    var data = JSON.parse(e.postData.contents);
+    if (!e || !e.postData) return json_(fail_('bad_request', 'ไม่มีข้อมูลส่งมาถึงสคริปต์'));
+    var data;
+    try { data = JSON.parse(e.postData.contents); } catch (pe) { return json_(fail_('bad_request', 'อ่านข้อมูลที่ส่งมาไม่ได้')); }
     if (!authorized_(data.key)) return unauthorized_();
     delete data.key; // ห้ามเก็บรหัสผ่านลงชีต
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    if (!ss) return json_({status: "error", message: "no spreadsheet"});
+    if (!ss) return json_(fail_('no_spreadsheet', 'สคริปต์ไม่ได้ผูกกับ Google Sheet (ต้องสร้างจาก Extensions > Apps Script ในชีตนั้น)'));
 
-    if (data.action === 'sync') return json_(syncPayload_(ss));
+    if (data.action === 'sync') {
+      // ถ้าแอปมีข้อมูลรุ่นล่าสุดอยู่แล้ว ตอบสั้นๆ ไม่ต้องอ่านทั้งชีต
+      if (data.since && Number(data.since) === readRev_()) return json_({status: "success", unchanged: true, rev: readRev_()});
+      return json_(syncPayload_(ss));
+    }
     if (data.action === 'ping') return json_(pingInfo_(ss));
 
-    lock.waitLock(20000);
+    try { lock.waitLock(20000); locked = true; }
+    catch (le) { return json_(fail_('lock_timeout', 'ชีตกำลังถูกใช้งานพร้อมกันหลายเครื่อง ลองใหม่อีกครั้ง')); }
+
     ensureSetup_(ss);
     var sheet = getDataSheet_(ss);
     var map = headerMap_(sheet);
 
     if (data.action === 'selftest') return json_(selfTest_(ss, sheet, map));
 
-    if (data.action === 'budget' && data.month) {
-      saveBudget_(ss, data.month, Number(data.amount) || 0);
-      return json_({status: "success", message: "budget saved"});
+    if (data.action === 'batch') {
+      var items = data.items || [], results = [], changed = false;
+      for (var i = 0; i < items.length; i++) {
+        var one = applyOne_(ss, sheet, map, items[i] || {});
+        if (one.changed) changed = true;
+        results.push({status: one.status, code: one.code, message: one.message});
+      }
+      return json_({status: "success", results: results, rev: changed ? bumpRev_() : readRev_()});
     }
 
-    if (data.action === 'delete' && data.id) {
-      var del = findRowById_(sheet, map, data.id);
-      if (del > -1) { sheet.deleteRow(del); return json_({status: "success", message: "deleted"}); }
-      return json_({status: "success", message: "already deleted"});
-    }
-
-    // เพิ่ม / แก้ไขรายการ
-    if (!data.id || (data.type !== 'income' && data.type !== 'expense')) {
-      return json_({status: "error", message: "invalid record"});
-    }
-    upsertRecord_(sheet, map, data);
-    return json_({status: "success"});
+    var res = applyOne_(ss, sheet, map, data);
+    res.rev = res.changed ? bumpRev_() : readRev_();
+    return json_(res);
   } catch (error) {
-    return json_({status: "error", message: error.toString()});
+    return json_(fail_('exception', error.toString()));
   } finally {
-    try { lock.releaseLock(); } catch (x) {}
+    if (locked) { try { lock.releaseLock(); } catch (x) {} }
   }
+}
+
+// ทำงาน 1 คำสั่ง: งบประมาณ / ลบ / เพิ่ม-แก้ไขรายการ (ต้องถือ lock อยู่)
+function applyOne_(ss, sheet, map, d) {
+  if (d.action === 'budget') {
+    if (!d.month) return {status: "error", code: "invalid_record", message: "ไม่มีเดือนของงบประมาณ"};
+    saveBudget_(ss, d.month, Number(d.amount) || 0);
+    return {status: "success", message: "budget saved", changed: true};
+  }
+  if (d.action === 'delete') {
+    if (!d.id) return {status: "error", code: "invalid_record", message: "ไม่มี id ที่จะลบ"};
+    var row = findRowById_(sheet, map, d.id);
+    if (row > -1) { sheet.deleteRow(row); return {status: "success", message: "deleted", changed: true}; }
+    return {status: "success", message: "already deleted", changed: false};
+  }
+  if (d.action) return {status: "error", code: "bad_request", message: "ไม่รู้จักคำสั่ง " + d.action};
+  if (!isRecord_(d)) return {status: "error", code: "invalid_record", message: "ข้อมูลรายการไม่ครบ (ต้องมี id และประเภทรายรับ/รายจ่าย)"};
+  upsertRecord_(sheet, map, d);
+  return {status: "success", changed: true};
 }
 
 function upsertRecord_(sheet, map, data) {

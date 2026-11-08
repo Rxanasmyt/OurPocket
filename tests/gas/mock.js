@@ -98,7 +98,7 @@ function makeEnv(opts = {}) {
     console, JSON, Math, Date, String, Number, Object, Array, isNaN, parseInt, parseFloat,
     SpreadsheetApp: { getActiveSpreadsheet: () => ss, getUi: () => swallow({ createMenu: () => swallow({}) }), newDataValidation: builder, newConditionalFormatRule: builder, BandingTheme: enumProxy, BorderStyle: enumProxy, ProtectionType: enumProxy },
     ContentService: { MimeType: enumProxy, createTextOutput: (t) => ({ text: t, setMimeType() { return this; } }) },
-    LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+    LockService: { getScriptLock: () => ({ waitLock() { if (opts.lockFail) throw new Error('Could not obtain lock'); }, releaseLock() {} }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props.has(k) ? props.get(k) : null), setProperty: (k, v) => props.set(k, v), deleteProperty: (k) => props.delete(k) }) },
     Utilities: { formatDate: (d, tz, f) => { const t = new Date(d.getTime() + 7 * 3600e3); return f.replace('yyyy', t.getUTCFullYear()).replace('MM', pad(t.getUTCMonth() + 1)).replace('dd', pad(t.getUTCDate())).replace('HH', pad(t.getUTCHours())).replace('mm', pad(t.getUTCMinutes())).replace('ss', pad(t.getUTCSeconds())); } },
     Logger: { log() {} }
