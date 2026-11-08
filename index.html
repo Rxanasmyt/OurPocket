@@ -21,7 +21,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.6.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.7.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -197,8 +197,17 @@
 
         <!-- Reminders -->
         <div id="remindersSection" class="hidden animate-scale-in">
-            <h3 class="font-bold text-orange-600 mb-3 flex items-center gap-2 px-1"><i class="ph-fill ph-bell-ringing"></i> บิลรอจ่าย</h3>
-            <div id="remindersList" class="space-y-3"></div>
+            <div class="flex justify-between items-end mb-2 px-1">
+                <h3 class="font-bold text-gray-800 flex items-center gap-2"><i class="ph-fill ph-list-numbers text-primary"></i> ลำดับการจ่าย</h3>
+                <p id="payPlanTotal" class="text-xs font-semibold text-gray-500"></p>
+            </div>
+            <div class="flex flex-wrap gap-1.5 mb-3 px-1 text-[10px] font-semibold">
+                <span class="px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">จ่ายปกติ</span>
+                <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">ผ่อนบัตร · ขั้นต่ำ</span>
+                <span class="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">ผ่อน · รายงวด</span>
+                <span class="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">สีแถบข้าง = ธนาคาร</span>
+            </div>
+            <div id="remindersList" class="space-y-2"></div>
         </div>
 
         <!-- Transactions List -->
@@ -309,6 +318,7 @@
                                 <option value="อาหาร">🍔 อาหาร</option><option value="เดินทาง">🚗 เดินทาง</option><option value="ช้อปปิ้ง">🛒 ช้อปปิ้ง</option>
                                 <option value="ที่พัก">💡 บ้าน/น้ำ/ไฟ</option><option value="สุขภาพ">🏥 สุขภาพ</option><option value="หนี้สิน">💳 หนี้สิน/ผ่อน</option><option value="อื่นๆ">📦 อื่นๆ</option>
                             </select>
+                            <p id="expCatHint" class="text-[11px] text-pink-600 mt-1 min-h-[1rem]"></p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">คนจ่ายเงิน</label>
@@ -321,8 +331,15 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">ช่องทางจ่าย</label>
                         <select id="expBank" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white">
-                            <option value="เงินสด">เงินสด</option><option value="KBank">KBank</option><option value="SCB">SCB</option>
-                            <option value="BBL">BBL</option><option value="KTB">KTB</option><option value="Credit Card">บัตรเครดิต</option>
+                            <option value="เงินสด">เงินสด</option>
+                            <option value="KBank">KBank - กสิกรไทย</option>
+                            <option value="SCB">SCB - ไทยพาณิชย์</option>
+                            <option value="BBL">BBL - กรุงเทพ</option>
+                            <option value="KTB">KTB - กรุงไทย</option>
+                            <option value="กรุงศรี">กรุงศรี</option>
+                            <option value="ttb">ttb - ทหารไทยธนชาต</option>
+                            <option value="ออมสิน">ออมสิน (GSB)</option>
+                            <option value="Credit Card">บัตรเครดิต</option>
                         </select>
                     </div>
                     <div>
@@ -397,7 +414,6 @@
         let searchQuery = "";
         let viewFilter = 'all';
         let animateNext = true;      // เล่นแอนิเมชันเข้าเฉพาะตอนเปิดแอป/เปลี่ยนเดือน/เปลี่ยนมุมมอง
-        let remindersExpanded = false;
         let highlightId = null;      // รายการที่เพิ่งบันทึก เล่นแอนิเมชันเฉพาะรายการนั้น
         // --- คิวส่งข้อมูลไป Google Sheets (เก็บในเครื่อง ส่งซ้ำเองจนสำเร็จ) ---
         let syncQueue = [];
@@ -498,6 +514,7 @@
             document.getElementById('sheetsKeyInput').value = window.sheetsKey;
 
             allTransactions = JSON.parse(localStorage.getItem('ourWalletData')) || [];
+            ensureRecurring();
             setupListeners();
             renderDashboard();
             updateSyncStatus();
@@ -512,7 +529,10 @@
 
         function setupListeners() {
             document.getElementById('monthSelector').addEventListener('change', (e) => { currentMonthYear = e.target.value; animateNext = true; renderDashboard(); });
+            document.getElementById('expDesc').addEventListener('input', (e) => autoFillFromDescription(e.target.value));
             document.getElementById('expDesc').addEventListener('change', (e) => prefillFromHistory('expense', e.target.value));
+            document.getElementById('expCategory').addEventListener('change', () => { expCategoryManual = true; document.getElementById('expCatHint').textContent = ''; });
+            document.getElementById('expBank').addEventListener('change', () => { expBankManual = true; });
             document.getElementById('incDesc').addEventListener('change', (e) => prefillFromHistory('income', e.target.value));
             // แตะพื้นหลัง/กด Esc เพื่อปิดหน้าต่างที่ไม่ใช่ฟอร์มกรอกข้อมูล (กันข้อมูลที่กำลังพิมพ์หาย)
             const closeable = () => ['debtModal', 'copyBillsModal', 'budgetModal', 'sheetsModal'].some(id => document.getElementById(id).classList.contains('flex'));
@@ -607,6 +627,12 @@
                     timestamp: new Date().getTime(),
                     ...extra
                 };
+                const prevItem = currentEditId ? allTransactions.find(t => t.id === currentEditId) : null;
+                if (prevItem) {
+                    if (prevItem.autoGenerated) { data.autoGenerated = true; data.userEdited = true; }
+                    if (prevItem.stopAuto) data.stopAuto = true;
+                    if (prevItem.userEdited) data.userEdited = true;
+                }
                 window.saveAndSync(data, 'expenseModal');
             });
         }
@@ -632,6 +658,7 @@
                 }
                 if(id === 'expenseModal') {
                     document.getElementById('expenseForm').reset(); updateExpenseModeUI();
+                    expCategoryManual = false; expBankManual = false; document.getElementById('expCatHint').textContent = '';
                     document.getElementById('expDueDate').value = localDateStr();
                     document.getElementById('expModalTitle').innerHTML = '<i class="ph-fill ph-minus-circle"></i> เพิ่มรายจ่าย';
                     document.getElementById('expSubmitBtn').textContent = "บันทึกรายจ่าย";
@@ -758,7 +785,7 @@
             else window.showToast("รายการเหล่านี้ถูกคัดลอกมาแล้วครับ", "error");
         };
 
-        window.editItem = (id) => {
+        window.editItem = (id, markPaid) => {
             const item = allTransactions.find(t => t.id === id);
             if(!item) return;
             currentEditId = id;
@@ -788,7 +815,7 @@
                 document.getElementById('expMinAmount').value = item.minAmount ?? '';
                 document.getElementById('expInstallAmount').value = item.installmentAmount ?? (mode === 'installment' ? item.amount : '');
                 updateExpenseModeUI();
-                document.getElementById('expCompleted').checked = item.isCompleted;
+                document.getElementById('expCompleted').checked = markPaid ? true : item.isCompleted;
                 document.getElementById('expModalTitle').innerHTML = '<i class="ph-fill ph-pencil-simple"></i> แก้ไขรายจ่าย';
                 document.getElementById('expSubmitBtn').textContent = "อัปเดตข้อมูล";
                 window.openModal('expenseModal');
@@ -801,6 +828,7 @@
             const index = allTransactions.findIndex(t => t.id === data.id);
             if(index > -1) allTransactions[index] = data;
             else allTransactions.push(data);
+            ensureRecurring();
 
             localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
             renderDashboard();
@@ -873,6 +901,7 @@
                             if (localStorage.getItem('budget_' + m) !== String(v)) { localStorage.setItem('budget_' + m, String(v)); changed = true; }
                         });
                     }
+                    if (ensureRecurring()) changed = true;
                     if (changed) renderDashboard();
                     if (!silent) window.showToast("ซิงค์สำเร็จ", "success");
                 }
@@ -884,6 +913,7 @@
         const autoSync = async () => {
             if (document.hidden) return;
             await flushQueue(); // ส่งข้อมูลที่ค้างก่อนเสมอ แม้เปิดฟอร์มอยู่
+            if (ensureRecurring()) renderDashboard();
             if (!document.getElementById('modalContainer').classList.contains('hidden')) return;
             window.syncFromSheets(true);
         };
@@ -929,7 +959,7 @@
                     return `
                     <div class="border border-orange-100 bg-orange-50/50 p-4 rounded-xl">
                         <div class="flex justify-between items-center mb-2">
-                            <p class="font-bold text-gray-800">${escapeHTML(d.description)}${whoTag}</p>
+                            <p class="font-bold text-gray-800 flex items-center gap-2 min-w-0">${bankBadge(d.bank, 28)}<span class="min-w-0 break-words">${escapeHTML(d.description)}${whoTag}</span></p>
                             <span class="text-xs font-bold bg-orange-200 text-orange-700 px-2 py-1 rounded-lg">จ่ายขั้นต่ำ</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2 mb-2"><div class="bg-orange-500 h-2 rounded-full" style="width: ${percent}%"></div></div>
@@ -949,7 +979,7 @@
                 return `
                 <div class="border border-orange-100 bg-orange-50/50 p-4 rounded-xl">
                     <div class="flex justify-between items-center mb-2">
-                        <p class="font-bold text-gray-800">${escapeHTML(d.description)}${whoTag}</p>
+                        <p class="font-bold text-gray-800 flex items-center gap-2 min-w-0">${bankBadge(d.bank, 28)}<span class="min-w-0 break-words">${escapeHTML(d.description)}${whoTag}</span></p>
                         <span class="text-xs font-bold bg-orange-200 text-orange-700 px-2 py-1 rounded-lg">งวดที่ ${cur}/${tot}</span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-2 mb-2"><div class="bg-orange-500 h-2 rounded-full" style="width: ${percent}%"></div></div>
@@ -1086,7 +1116,7 @@
                         div.innerHTML = `
                             <div class="flex items-center gap-3 min-w-0">
                                 <div class="bg-red-100 text-red-600 w-10 h-10 rounded-full hidden min-[420px]:flex items-center justify-center shrink-0"><i class="ph-bold ph-arrow-up-right text-xl"></i></div>
-                                <div class="min-w-0"><p class="font-medium text-gray-800 break-words">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500">${safeCat} • ${formatDate(t.date)} ${installBadge}${minBadge}</p></div>
+                                <div class="min-w-0"><p class="font-medium text-gray-800 break-words">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500 flex flex-wrap items-center gap-1"><span>${safeCat} • ${formatDate(t.date)}</span>${bankChip(t.bank)}${billKind(t) !== 'normal' ? typeChip(t) : ''}${installBadge}${minBadge}</p></div>
                             </div>
                             <div class="text-right flex items-center shrink-0">
                                 <div class="flex flex-col items-end mr-2">
@@ -1139,35 +1169,7 @@
                 budgetStatus.textContent = "ตั้งงบ"; budgetStatus.className = "text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded";
             }
 
-            // บิลรอจ่าย
-            const pendingBills = allTransactions.filter(t => t.type === 'expense' && !t.isCompleted && t.monthYear <= currentMonthYear);
-            pendingBills.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-            if (pendingBills.length > 0) {
-                document.getElementById('remindersSection').classList.remove('hidden');
-                const shownBills = remindersExpanded ? pendingBills : pendingBills.slice(0, 3);
-                remList.innerHTML = shownBills.map(t => {
-                    const isOverdue = t.date < todayStr;
-                    return `
-                    <div class="bg-white border-l-4 ${isOverdue ? 'border-red-600 bg-red-50' : 'border-orange-400'} rounded-r-xl p-3 flex justify-between items-center shadow-sm relative overflow-hidden">
-                        <div class="flex items-center gap-3 relative z-10">
-                            <div class="${isOverdue ? 'bg-red-200 text-red-600' : 'bg-orange-100 text-orange-600'} w-10 h-10 rounded-full flex items-center justify-center">
-                                <i class="ph-fill ${isOverdue ? 'ph-warning-circle text-2xl' : 'ph-bell-ringing text-xl'} animate-pulse"></i>
-                            </div>
-                            <div>
-                                <p class="font-bold text-gray-800 text-sm">${escapeHTML(t.description)} ${isOverdue ? '<span class="text-[10px] bg-red-600 text-white px-1 py-0.5 rounded ml-1">เกินกำหนด!</span>' : ''}</p>
-                                <p class="text-xs ${isOverdue ? 'text-red-600 font-bold' : 'text-orange-600'}">กำหนด: ${formatDate(t.date)}</p>
-                            </div>
-                        </div>
-                        <div class="text-right relative z-10">
-                            <p class="font-bold text-red-600 mb-1">-${formatMoney(t.amount)}</p>
-                            <button onclick="window.toggleStatus('${t.id}')" class="text-xs ${isOverdue ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-500 hover:bg-orange-600'} text-white px-3 py-1.5 rounded-lg active:scale-95 transition-all">กดจ่ายบิลนี้</button>
-                        </div>
-                    </div>`
-                }).join('') + (pendingBills.length > 3 ? `<button type="button" onclick="window.toggleReminders()" class="w-full py-2.5 rounded-xl bg-white text-sm font-semibold text-orange-600 border border-orange-200">${remindersExpanded ? 'ซ่อนบางรายการ' : 'ดูอีก ' + (pendingBills.length - 3) + ' รายการ'}</button>` : '');
-            } else {
-                document.getElementById('remindersSection').classList.add('hidden');
-            }
+            renderPayPlan();
         }
 
         const CATEGORY_COLORS = ['#ff4d6d', '#f59e0b', '#8b5cf6', '#0ea5e9', '#10b981', '#c9184a', '#9ca3af'];
@@ -1233,6 +1235,237 @@
             el._raf = requestAnimationFrame(step);
         }
 
+        // ===== ธนาคาร: สีและสัญลักษณ์ =====
+        const BANKS = {
+            'เงินสด': { abbr: '฿', color: '#64748b', fg: '#ffffff', name: 'เงินสด' },
+            'KBank': { abbr: 'KBank', color: '#138f2d', fg: '#ffffff', name: 'กสิกรไทย' },
+            'SCB': { abbr: 'SCB', color: '#4e2e7f', fg: '#ffffff', name: 'ไทยพาณิชย์' },
+            'BBL': { abbr: 'BBL', color: '#1e4598', fg: '#ffffff', name: 'กรุงเทพ' },
+            'KTB': { abbr: 'KTB', color: '#1ba5e0', fg: '#ffffff', name: 'กรุงไทย' },
+            'กรุงศรี': { abbr: 'BAY', color: '#fec43b', fg: '#5b4300', name: 'กรุงศรี' },
+            'ttb': { abbr: 'ttb', color: '#ee6b1e', fg: '#ffffff', name: 'ทหารไทยธนชาต' },
+            'ออมสิน': { abbr: 'GSB', color: '#eb0f7f', fg: '#ffffff', name: 'ออมสิน' },
+            'Credit Card': { abbr: 'CARD', color: '#1f2937', fg: '#ffffff', name: 'บัตรเครดิต' }
+        };
+        const bankMeta = (b) => BANKS[b] || { abbr: (b || '?').slice(0, 4), color: '#94a3b8', fg: '#ffffff', name: b || '-' };
+        const bankBadge = (b, size = 40) => {
+            const m = bankMeta(b);
+            const fs = size >= 40 ? 10 : 8;
+            return `<span class="inline-flex items-center justify-center font-extrabold shrink-0" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.3)}px;background:${m.color};color:${m.fg};font-size:${fs}px;letter-spacing:-0.02em">${escapeHTML(m.abbr)}</span>`;
+        };
+        const bankChip = (b) => { const m = bankMeta(b); return `<span class="px-1.5 rounded text-[10px] font-bold" style="background:${m.color};color:${m.fg}">${escapeHTML(m.abbr)}</span>`; };
+
+        // ===== ประเภทบิล: สี =====
+        const TYPE_META = {
+            normal: { label: 'จ่ายปกติ', cls: 'bg-sky-100 text-sky-700' },
+            minpay: { label: 'ผ่อนบัตร · ขั้นต่ำ', cls: 'bg-amber-100 text-amber-700' },
+            installment: { label: 'ผ่อน · รายงวด', cls: 'bg-violet-100 text-violet-700' }
+        };
+        const billKind = (t) => t.payMode === 'minpay' ? 'minpay' : (t.payMode === 'installment' || (!t.payMode && Number(t.totalInstallments) > 0)) ? 'installment' : 'normal';
+        const typeChip = (t) => { const m = TYPE_META[billKind(t)]; return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${m.cls}">${m.label}</span>`; };
+
+        // ===== วันที่/เดือน =====
+        const pad2 = (n) => String(n).padStart(2, '0');
+        const round2 = (n) => Math.round(n * 100) / 100;
+        const addMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; };
+        const dateInMonth = (dateStr, ym) => {
+            const [y, m] = ym.split('-').map(Number);
+            const last = new Date(y, m, 0).getDate();
+            return `${ym}-${pad2(Math.min(Number(dateStr.slice(8, 10)) || 1, last))}`;
+        };
+        const daysFromToday = (dateStr) => {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const t = new Date(); const a = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+            return Math.round((Date.UTC(y, m - 1, d) - a) / 86400000);
+        };
+        const thaiMonthYear = (dateStr) => new Date(dateStr.slice(0, 7) + '-01').toLocaleDateString('th-TH', { month: 'short', year: '2-digit' });
+
+        // ===== บิลต่อเนื่องอัตโนมัติ (ผ่อนรายงวด / จ่ายขั้นต่ำ) =====
+        const hashStr = (str) => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+        const seriesKey = (t) => [t.who || '', (t.description || '').trim().toLowerCase(), t.bank || '', billKind(t)].join('|');
+        const sortByMonthDate = (a, b) => a.monthYear === b.monthYear ? new Date(a.date) - new Date(b.date) : (a.monthYear < b.monthYear ? -1 : 1);
+
+        // สร้างบิลเดือนถัดไปให้เองจนถึงเดือนหน้า: ผ่อนงวด = งวดถัดไปจนครบ, จ่ายขั้นต่ำ = ยกยอดคงค้างมาเมื่อจ่ายแล้ว
+        function ensureRecurring() {
+            const horizon = addMonth(localDateStr().slice(0, 7), 1);
+            const groups = {};
+            allTransactions.forEach(t => {
+                if (t.type !== 'expense') return;
+                const kind = billKind(t);
+                if (kind === 'normal') return;
+                (groups[seriesKey(t)] = groups[seriesKey(t)] || []).push(t);
+            });
+            let changed = 0;
+            const mkId = (key, ym) => 'auto-' + hashStr(key) + '-' + ym;
+            const minNext = (prev) => {
+                const left = round2((Number(prev.fullAmount) || 0) - (Number(prev.amount) || 0));
+                if (left <= 0) return null;
+                const pay = Math.min(Number(prev.minAmount) || Number(prev.amount) || left, left);
+                return { fullAmount: left, minAmount: Math.min(Number(prev.minAmount) || pay, left), amount: pay, remainingAmount: round2(left - pay) };
+            };
+            Object.entries(groups).forEach(([key, list]) => {
+                list.sort(sortByMonthDate);
+                const kind = billKind(list[list.length - 1]);
+
+                // ปรับบิลขั้นต่ำที่สร้างอัตโนมัติและยังไม่ได้แก้เอง ให้ตรงกับยอดคงค้างล่าสุด
+                if (kind === 'minpay' && list.length >= 2) {
+                    const cur = list[list.length - 1], prev = list[list.length - 2];
+                    if (cur.autoGenerated && !cur.userEdited && !cur.isCompleted && prev.isCompleted) {
+                        const exp = minNext(prev);
+                        if (!exp) {
+                            allTransactions = allTransactions.filter(t => t.id !== cur.id);
+                            sendToSheets({ action: 'delete', id: cur.id });
+                            list.pop(); changed++;
+                        } else if (['fullAmount', 'minAmount', 'amount', 'remainingAmount'].some(k => cur[k] !== exp[k])) {
+                            Object.assign(cur, exp, { timestamp: Date.now() });
+                            sendToSheets(cur); changed++;
+                        }
+                    }
+                }
+
+                let last = list[list.length - 1];
+                if (!last || last.stopAuto) return;
+                for (;;) {
+                    const nextYM = addMonth(last.monthYear, 1);
+                    if (nextYM > horizon) break;
+                    let patch;
+                    if (kind === 'installment') {
+                        const cur = parseInt(last.currentInstallment) || 0, tot = parseInt(last.totalInstallments) || 0;
+                        if (!(cur > 0 && tot > 0 && cur < tot)) break;
+                        const per = Number(last.installmentAmount) || Number(last.amount) || 0;
+                        patch = { currentInstallment: String(cur + 1), amount: per, installmentAmount: per };
+                    } else {
+                        if (!last.isCompleted) break;
+                        patch = minNext(last);
+                        if (!patch) break;
+                    }
+                    const next = { ...last, ...patch, id: mkId(key, nextYM), date: dateInMonth(last.date, nextYM), monthYear: nextYM, isCompleted: false, autoGenerated: true, timestamp: Date.now() };
+                    delete next.stopAuto; delete next.userEdited;
+                    if (allTransactions.some(t => t.id === next.id)) break;
+                    allTransactions.push(next);
+                    sendToSheets(next);
+                    changed++;
+                    last = next;
+                }
+            });
+            if (changed) localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+            return changed;
+        }
+
+        // ===== หมวดหมู่รายจ่ายอัตโนมัติจากรายละเอียด =====
+        const CATEGORY_RULES = [
+            ['หนี้สิน', /ผ่อน|บัตร|ktc|cardx|เงินกู้|สินเชื่อ|ค่างวด|ดอกเบี้ย|หนี้|ขั้นต่ำ|กู้/i],
+            ['ที่พัก', /ค่าไฟ|ค่าน้ำ(?!มัน)|ค่าเช่า|ค่าห้อง|ค่าหอ|ส่วนกลาง|ค่าเน็ต|เน็ตบ้าน|อินเทอร์เน็ต|อินเตอร์เน็ต|wi-?fi|ไวไฟ|ค่าแก๊ส|ค่าขยะ|ประปา|การไฟฟ้า|\bpea\b|\bmea\b|ค่าโทรศัพท์|ค่ามือถือ|\bais\b|\btrue\b|\bdtac\b|\b3bb\b/i],
+            ['สุขภาพ', /ค่ายา|ซื้อยา|ร้านยา|^ยา|หมอ|โรงพยาบาล|รพ\.|คลินิก|ทำฟัน|ฟัน|ตรวจ|วิตามิน|ประกันสุขภาพ|ฟิตเนส|ยิม|\bgym\b|นวด|แว่น|ผ่าตัด/i],
+            ['เดินทาง', /น้ำมัน|ปตท|\bptt\b|ค่ารถ|รถไฟ|\bbts\b|\bmrt\b|แท็กซี่|taxi|grab(?!\s*food|food)|\bbolt\b|ทางด่วน|easy\s*pass|ที่จอดรถ|ค่าจอด|เครื่องบิน|ตั๋ว|ค่าโดยสาร|ซ่อมรถ|ประกันรถ|พรบ|ล้างรถ/i],
+            ['อาหาร', /ข้าว|อาหาร|มื้อ|ก๋วยเตี๋ยว|ส้มตำ|หมูกระทะ|ชาบู|บุฟเฟ|ปิ้งย่าง|กาแฟ|คาเฟ่|cafe|ชานม|ขนม|เครื่องดื่ม|ไก่|หมู|ปลา|grab\s*food|grabfood|lineman|foodpanda|ตลาด|starbucks|kfc|mcdonald|pizza|เบเกอรี่|ผลไม้|ผัก/i],
+            ['ช้อปปิ้ง', /shopee|lazada|ช้อป|เสื้อ|กางเกง|รองเท้า|กระเป๋า|เครื่องสำอาง|skincare|ห้าง|lotus|โลตัส|big\s*c|บิ๊กซี|makro|แม็คโคร|7-?eleven|เซเว่น|ของใช้|tiktok|central|เซ็นทรัล|ซื้อ/i]
+        ];
+        const BANK_RULES = [
+            ['KBank', /kbank|กสิกร|k\s*plus/i], ['SCB', /\bscb\b|ไทยพาณิชย์/i], ['BBL', /\bbbl\b|ธนาคารกรุงเทพ|bangkok\s*bank/i],
+            ['KTB', /\bktb\b|กรุงไทย|ktc/i], ['กรุงศรี', /กรุงศรี|krungsri/i], ['ttb', /\bttb\b|ทีทีบี|ทหารไทย|ธนชาต/i], ['ออมสิน', /ออมสิน|\bgsb\b/i]
+        ];
+        function guessCategory(desc) {
+            const text = (desc || '').trim();
+            if (text.length < 2) return null;
+            const key = text.toLowerCase();
+            const hist = allTransactions.filter(t => t.type === 'expense' && (t.description || '').trim().toLowerCase() === key)
+                .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
+            if (hist && hist.category) return hist.category;
+            const hit = CATEGORY_RULES.find(([, re]) => re.test(text));
+            return hit ? hit[0] : null;
+        }
+        function guessBank(desc) { const hit = BANK_RULES.find(([, re]) => re.test(desc || '')); return hit ? hit[0] : null; }
+
+        let expCategoryManual = false, expBankManual = false;
+        function autoFillFromDescription(desc) {
+            if (currentEditId) return;
+            const hint = document.getElementById('expCatHint');
+            if (!expCategoryManual) {
+                const cat = guessCategory(desc);
+                if (cat) {
+                    setSelect('expCategory', cat);
+                    const label = document.getElementById('expCategory').selectedOptions[0].textContent.replace(/^[^\wก-๙]+/, '').trim();
+                    hint.textContent = '✨ เลือกหมวด "' + label + '" ให้อัตโนมัติ';
+                } else { hint.textContent = ''; }
+            }
+            if (!expBankManual) { const b = guessBank(desc); if (b) setSelect('expBank', b); }
+        }
+
+        // ===== ลำดับการจ่าย =====
+        function renderPayPlan() {
+            const section = document.getElementById('remindersSection');
+            const box = document.getElementById('remindersList');
+            const nextYM = addMonth(currentMonthYear, 1);
+            const bills = allTransactions.filter(t => t.type === 'expense' && !t.isCompleted && t.monthYear <= nextYM)
+                .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (Number(b.amount) || 0) - (Number(a.amount) || 0)));
+            if (bills.length === 0) { section.classList.add('hidden'); return; }
+            section.classList.remove('hidden');
+
+            const GROUPS = [
+                { id: 'over', title: 'เกินกำหนดแล้ว', head: 'text-red-600', dot: 'bg-red-500', test: d => d < 0 },
+                { id: 'week', title: 'ภายใน 7 วัน', head: 'text-orange-600', dot: 'bg-orange-500', test: d => d <= 7 },
+                { id: 'month', title: 'ภายใน 1 เดือน', head: 'text-sky-600', dot: 'bg-sky-500', test: d => d <= 31 },
+                { id: 'later', title: 'ถัดไป', head: 'text-gray-500', dot: 'bg-gray-400', test: () => true }
+            ];
+            const buckets = GROUPS.map(g => ({ ...g, items: [] }));
+            bills.forEach(t => { const d = daysFromToday(t.date); buckets.find(g => g.test(d)).items.push({ t, d }); });
+
+            const dueText = (d) => d < 0 ? `เกินกำหนด ${-d} วัน` : d === 0 ? 'ครบกำหนดวันนี้' : d === 1 ? 'พรุ่งนี้' : `อีก ${d} วัน`;
+            const dueCls = (d) => d < 0 ? 'text-red-600' : d <= 7 ? 'text-orange-600' : 'text-sky-600';
+            let n = 0, grand = 0;
+            box.innerHTML = buckets.filter(g => g.items.length).map(g => {
+                const sum = g.items.reduce((a, { t }) => a + (Number(t.amount) || 0), 0);
+                grand += sum;
+                const cards = g.items.map(({ t, d }) => {
+                    n++;
+                    const m = bankMeta(t.bank);
+                    const kind = billKind(t);
+                    let extra = '';
+                    if (kind === 'installment') {
+                        const cur = parseInt(t.currentInstallment) || 1, tot = parseInt(t.totalInstallments) || 1;
+                        const endDate = dateInMonth(t.date, addMonth(t.monthYear, Math.max(0, tot - cur)));
+                        extra = `<p class="text-[11px] text-gray-500 mt-0.5">งวด ${cur}/${tot} · ผ่อนหมด ${thaiMonthYear(endDate)} (เหลือ ${Math.max(0, tot - cur)} งวด)</p>`;
+                    } else if (kind === 'minpay') {
+                        extra = `<p class="text-[11px] text-gray-500 mt-0.5">ยอดเต็ม ${formatMoney(t.fullAmount || 0)} · ขั้นต่ำ ${formatMoney(t.minAmount || 0)} · ค้างหลังจ่าย ${formatMoney(t.remainingAmount || 0)}</p>`;
+                    }
+                    return `
+                    <div class="bg-white rounded-2xl p-3 flex items-center gap-3 shadow-sm border-l-4" style="border-left-color:${m.color}">
+                        <div class="relative shrink-0">
+                            ${bankBadge(t.bank, 40)}
+                            <span class="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-gray-800 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">${n}</span>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="font-semibold text-gray-800 text-sm break-words">${escapeHTML(t.description)} ${t.who ? `<span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded ml-0.5">${escapeHTML(t.who)}</span>` : ''}</p>
+                            <div class="flex flex-wrap items-center gap-1 mt-1">${typeChip(t)}</div>
+                            <p class="text-xs font-bold mt-1 ${dueCls(d)}">${dueText(d)} · ${formatDate(t.date)}</p>
+                            ${extra}
+                        </div>
+                        <div class="text-right shrink-0">
+                            <p class="font-bold text-red-600 text-sm">-${formatMoney(t.amount)}</p>
+                            <button onclick="window.payBill('${t.id}')" class="mt-1 text-xs ${d < 0 ? 'bg-red-600' : d <= 7 ? 'bg-orange-500' : 'bg-sky-500'} text-white px-3 py-1.5 rounded-lg font-semibold">${kind === 'minpay' ? 'ระบุจ่าย' : 'จ่ายแล้ว'}</button>
+                        </div>
+                    </div>`;
+                }).join('');
+                return `
+                <div>
+                    <div class="flex justify-between items-center px-1 mb-1.5 mt-1">
+                        <p class="text-xs font-bold ${g.head} flex items-center gap-1.5"><span class="w-2 h-2 rounded-full ${g.dot}"></span>${g.title} · ${g.items.length} บิล</p>
+                        <p class="text-xs font-semibold ${g.head}">${formatMoney(sum)}</p>
+                    </div>
+                    <div class="space-y-2">${cards}</div>
+                </div>`;
+            }).join('');
+            document.getElementById('payPlanTotal').textContent = `รวมค้างจ่าย ${formatMoney(grand)}`;
+        }
+
+        window.payBill = (id) => {
+            const t = allTransactions.find(x => x.id === id);
+            if (!t) return;
+            if (billKind(t) === 'minpay') { window.editItem(id, true); window.showToast('ใส่จำนวนที่จ่ายจริง แล้วกดอัปเดตข้อมูล'); }
+            else window.toggleStatus(id);
+        };
+
         window.shiftMonth = (delta) => {
             const [y, m] = currentMonthYear.split('-').map(Number);
             const d = new Date(y, m - 1 + delta, 1);
@@ -1248,7 +1481,6 @@
             try { localStorage.setItem('statsOpen', open ? '1' : '0'); } catch (e) {}
         };
 
-        window.toggleReminders = () => { remindersExpanded = !remindersExpanded; renderDashboard(); };
 
         // รายการที่เคยกรอก: แนะนำชื่อ และเติมหมวด/คน/ช่องทาง/จำนวนล่าสุดให้เมื่อเลือกชื่อเดิม
         function updateSuggestions() {
@@ -1360,7 +1592,17 @@
 
         window.toggleStatus = (id) => { const i = allTransactions.find(t=>t.id===id); if(i){ i.isCompleted = !i.isCompleted; i.timestamp = Date.now(); window.saveAndSync(i); } };
         window.deleteItem = (id) => {
-            if(confirm('ลบรายการนี้?')) {
+            const item = allTransactions.find(t => t.id === id);
+            const recurring = item && item.type === 'expense' && billKind(item) !== 'normal';
+            let prevOfSeries = null;
+            if (recurring) {
+                const sibs = allTransactions.filter(t => t.id !== id && t.type === 'expense' && seriesKey(t) === seriesKey(item)).sort(sortByMonthDate);
+                const last = sibs[sibs.length - 1];
+                if (last && last.monthYear < item.monthYear) prevOfSeries = last;
+            }
+            const msg = prevOfSeries ? 'ลบบิลนี้ และหยุดสร้างบิลเดือนถัดไปอัตโนมัติ?' : 'ลบรายการนี้?';
+            if(confirm(msg)) {
+                if (prevOfSeries) { prevOfSeries.stopAuto = true; prevOfSeries.timestamp = Date.now(); sendToSheets(prevOfSeries); }
                 allTransactions = allTransactions.filter(t => t.id !== id); localStorage.setItem('ourWalletData', JSON.stringify(allTransactions)); renderDashboard();
                 sendToSheets({action: 'delete', id: id});
             }

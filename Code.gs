@@ -13,13 +13,20 @@ var SHEET_DATA = 'รายการ';
 var SHEET_DASH = 'สรุป';
 var SHEET_SET = 'ตั้งค่า';
 var SHEET_MONTH = 'รายเดือน';
-var SETUP_VERSION = 'v5';
+var SETUP_VERSION = 'v6';
 var HEADERS = ["ประเภท", "วันที่", "เดือน-ปี", "หมวดหมู่", "รายการ", "คนทำรายการ", "ธนาคาร", "งวดที่", "รวมงวด", "จำนวนเงิน", "สถานะ", "บันทึกเมื่อ", "ID", "RAW_JSON", "รูปแบบการจ่าย", "ยอดเต็มบิล", "ขั้นต่ำ / ต่องวด", "คงค้าง"];
 var COL_ID = 12;   // index (0-based) ของคอลัมน์ ID
 var COL_JSON = 13; // index (0-based) ของคอลัมน์ RAW_JSON
 var EXPENSE_CATEGORIES = ['อาหาร', 'เดินทาง', 'ช้อปปิ้ง', 'ที่พัก', 'สุขภาพ', 'หนี้สิน', 'อื่นๆ'];
 var PEOPLE = ['Anas', 'Phada'];
 var INCOME_CATEGORIES = ['เงินเดือน', 'ค่าเสี่ยงภัย', 'ค่า พตส', 'ค่าเวร', 'ค่าใบประกอบ', 'ค่า ฉ.10', 'ค่า ฉ.11', 'ค่าเงินประจำตำแหน่ง'];
+
+// สีธนาคาร (ตรงกับในแอป) ใช้ไฮไลต์คอลัมน์ "ธนาคาร" ในแท็บรายการ
+var BANK_COLORS = {
+  'KBank': ['#138f2d', '#ffffff'], 'SCB': ['#4e2e7f', '#ffffff'], 'BBL': ['#1e4598', '#ffffff'],
+  'KTB': ['#1ba5e0', '#ffffff'], 'กรุงศรี': ['#fec43b', '#5b4300'], 'ttb': ['#ee6b1e', '#ffffff'],
+  'ออมสิน': ['#eb0f7f', '#ffffff'], 'Credit Card': ['#1f2937', '#ffffff'], 'เงินสด': ['#64748b', '#ffffff']
+};
 
 var COLOR_PRIMARY = '#ff4d6d';
 var COLOR_DARK = '#c9184a';
@@ -297,6 +304,11 @@ function formatDataSheet_(sh) {
     SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('เสร็จสิ้น').setBackground('#d1fae5').setFontColor('#047857').setRanges([statusRange]).build(),
     SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('รอดำเนินการ').setBackground('#fef3c7').setFontColor('#b45309').setBold(true).setRanges([statusRange]).build()
   ];
+  var bankRange = sh.getRange(2, 7, n - 1, 1);
+  Object.keys(BANK_COLORS).forEach(function (bank) {
+    rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(bank)
+      .setBackground(BANK_COLORS[bank][0]).setFontColor(BANK_COLORS[bank][1]).setBold(true).setRanges([bankRange]).build());
+  });
   sh.setConditionalFormatRules(rules);
 
   // ตัวกรอง + ซ่อนคอลัมน์ที่ระบบใช้ภายใน (ID, RAW_JSON)
