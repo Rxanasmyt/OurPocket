@@ -12,7 +12,10 @@
     "test:motion": "node tests/gas/motion.js",
     "test:graphics": "node tests/gas/graphics.js",
     "test:advanced": "node tests/gas/advanced.js",
-    "test:modern": "node tests/gas/modern.js"
+    "test:modern": "node tests/gas/modern.js",
+    "test:harden": "node tests/gas/harden.js",
+    "test:monkey": "node tests/gas/monkey.js",
+    "test:monkey-sync": "node tests/gas/monkey-sync.js"
   },
   "devDependencies": {
     "tailwindcss": "3.4.17",

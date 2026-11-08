@@ -1,0 +1,40 @@
+// ทดสอบความทนทาน: ข้อมูลในเครื่องเสีย, พื้นที่เก็บเต็ม, คีย์บอร์ดบนแถวรายการ
+// เปิดเซิร์ฟเวอร์ก่อน: python3 -m http.server 8080
+const { chromium } = require('playwright');
+let pass = 0, fail = 0;
+const ok = (c, m) => { if (c) { pass++; console.log('  PASS', m); } else { fail++; console.log('  FAIL', m); } };
+const pad = (n) => String(n).padStart(2, '0');
+const now = new Date();
+const M0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+const seed = [{ id: 'e1', type: 'expense', date: M0 + '-05', monthYear: M0, category: 'อาหาร', who: 'Anas', description: 'ข้าว', bank: 'เงินสด', amount: 300, isCompleted: true, timestamp: 7 }];
+(async () => {
+  const browser = await chromium.launch();
+  const mk = async (init) => {
+    const ctx = await browser.newContext({ viewport: { width: 375, height: 800 }, hasTouch: true, isMobile: true });
+    const p = await ctx.newPage(); const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message)); p.on('dialog', (d) => d.dismiss());
+    await p.addInitScript(init, seed);
+    await p.goto('http://localhost:8080/index.html', { waitUntil: 'load' }); await p.waitForTimeout(1800);
+    return { p, errs };
+  };
+  console.log('== corrupted storage ==');
+  let r = await mk((s) => { if (!localStorage.getItem('x')) { localStorage.setItem('x', '1'); localStorage.setItem('ourWalletData', '{not json'); } });
+  ok(r.errs.length === 0, 'no page error with corrupted data');
+  ok(await r.p.evaluate(() => !!document.getElementById('transactionsList')), 'app renders');
+  ok(await r.p.evaluate(() => getComputedStyle(document.body).opacity !== '0'), 'content visible');
+  console.log('== storage quota ==');
+  r = await mk((s) => { localStorage.setItem('ourWalletData', JSON.stringify(s)); const o = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (k === 'ourWalletData' || k === 'walletQueue') throw new DOMException('full', 'QuotaExceededError'); return o.call(this, k, v); }; });
+  ok(r.errs.length === 0, 'no page error on load when storage is full');
+  await r.p.evaluate(() => window.editItem('e1')); await r.p.waitForTimeout(400);
+  ok(r.errs.length === 0, 'no page error when opening edit with full storage');
+  console.log('== keyboard on rows ==');
+  r = await mk((s) => { if (!localStorage.getItem('x')) { localStorage.setItem('x', '1'); localStorage.setItem('ourWalletData', JSON.stringify(s)); } });
+  const card = r.p.locator('#transactionsList .row-card').first();
+  ok(await card.getAttribute('tabindex') === '0', 'row is focusable');
+  ok((await card.getAttribute('aria-label') || '').includes('ข้าว'), 'row has aria-label');
+  await card.focus(); await r.p.keyboard.press('Enter'); await r.p.waitForTimeout(500);
+  ok(await r.p.evaluate(() => document.getElementById('descInput') ? true : !!document.querySelector('.sheet.open, #expenseModal:not(.hidden), [id*=odal]:not(.hidden)')), 'Enter opens edit');
+  ok(r.errs.length === 0, 'no page errors');
+  console.log(`\n${pass} passed, ${fail} failed`);
+  await browser.close(); process.exit(fail ? 1 : 0);
+})();

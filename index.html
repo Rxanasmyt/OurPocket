@@ -2,7 +2,15 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <script>document.documentElement.classList.add('js')</script>
+    <script>
+        document.documentElement.classList.add('js');
+        // ตาข่ายนิรภัย: ถ้าแอปเริ่มทำงานไม่สำเร็จ ต้องไม่ค้างหน้าโหลดหรือซ่อนเนื้อหาไว้ตลอด
+        setTimeout(function () {
+            if (!window.__revealReady) document.documentElement.classList.add('reveal-fallback');
+            var o = document.getElementById('loadingOverlay');
+            if (o && o.style.display !== 'none') { o.style.opacity = '0'; o.style.pointerEvents = 'none'; setTimeout(function () { o.style.display = 'none'; }, 350); }
+        }, 6000);
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#ff4d6d">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -22,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.16.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.17.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -172,12 +180,14 @@
         /* ===== Motion system v2: สไตล์แอปทางการ — นุ่ม สม่ำเสมอ ไม่ฉูดฉาด ===== */
         :root { --dur-fast: 0.14s; --dur-base: 0.24s; --dur-slow: 0.5s; --ease-standard: cubic-bezier(0.2, 0, 0, 1); --ease-emph: cubic-bezier(0.16, 1, 0.3, 1); --ease-exit: cubic-bezier(0.4, 0, 1, 1); }
         /* ส่วนต่างๆ ค่อยๆ ปรากฏเมื่อเลื่อนมาถึง (เปิดใช้เฉพาะเมื่อ JS ทำงาน) */
+        .reveal-fallback .reveal { opacity: 1 !important; transform: none !important; }
         .js .reveal { opacity: 0; transform: translateY(18px) scale(0.985); }
         .js .reveal.in-view { opacity: 1; transform: none; transition: opacity 0.65s var(--ease-emph) var(--d, 0s), transform 0.75s var(--ease-emph) var(--d, 0s); }
         /* ช่องกรอก: วงแสงนุ่มๆ ตอนโฟกัส */
         input, select, textarea { transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), background-color var(--dur-base) var(--ease-standard); }
         input:focus, select:focus, textarea:focus { outline: none; border-color: #ff4d6d !important; box-shadow: 0 0 0 4px rgba(255, 77, 109, 0.14); }
         #incomeModal input:focus, #incomeModal select:focus { border-color: #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.16); }
+        .row-card:focus-visible { outline: 2px solid #ff4d6d; outline-offset: 2px; }
         button:focus-visible, .chip:focus-visible { outline: 2px solid #ff4d6d; outline-offset: 2px; }
         /* กรอกผิด: สั่นเบาๆ + ขอบแดง */
         @keyframes shake { 10%, 90% { transform: translateX(-1px); } 20%, 80% { transform: translateX(2px); } 30%, 50%, 70% { transform: translateX(-4px); } 40%, 60% { transform: translateX(4px); } }
@@ -336,6 +346,10 @@
         .donut-dim .donut-seg:not(.donut-sel) { opacity: 0.32; }
         /* เหรียญกระจายจากปุ่มตอนกดจ่ายแต่ละบิล */
         .mini-piece { position: absolute; width: 7px; height: 7px; border-radius: 50%; opacity: 0; animation: confettiFly 0.85s cubic-bezier(0.15, 0.8, 0.3, 1) forwards; }
+        /* แถวรายการค่อยๆ ขยายเข้ามาขณะเลื่อน (scroll-driven; ใช้ property scale จึงไม่ชนกับท่าปัด) */
+        @keyframes rowEnter { from { opacity: 0.25; scale: 0.96; } }
+        @supports (animation-timeline: view()) { .swipe-row .row-card { animation: rowEnter linear both; animation-timeline: view(); animation-range: entry 0% entry 30%; } }
+        .live-flash .row-card { animation: liveTint 2.4s ease-out !important; animation-timeline: auto !important; animation-range: normal !important; }
         .submit-sticky { box-shadow: 0 -20px 16px 4px #fff !important; }
         /* --- ปรับสำหรับมือถือ --- */
         html { -webkit-text-size-adjust: 100%; }
@@ -730,7 +744,28 @@
         let syncFailure = null, lastNotifiedCode = null;
         const REQUIRED_API = 8;
         window.sheetsKey = localStorage.getItem('sheetsKey') || '';
-        const saveQueue = () => localStorage.setItem('walletQueue', JSON.stringify(syncQueue));
+        const saveQueue = () => { try { localStorage.setItem('walletQueue', JSON.stringify(syncQueue)); } catch (e) { /* พื้นที่เต็ม: คิวยังอยู่ในหน่วยความจำของหน้านี้ */ } };
+        // โหลดข้อมูลในเครื่องแบบปลอดภัย: ไฟล์เสียหรือรูปแบบผิดต้องไม่ทำให้แอปเปิดไม่ขึ้น
+        let dataRecovered = false, persistWarned = false;
+        function loadLocalData() {
+            try {
+                const raw = localStorage.getItem('ourWalletData');
+                const arr = raw ? JSON.parse(raw) : [];
+                if (!Array.isArray(arr)) throw new Error('not an array');
+                return arr.filter(t => t && typeof t === 'object' && t.id && (t.type === 'income' || t.type === 'expense'));
+            } catch (e) {
+                dataRecovered = true;
+                try { localStorage.setItem('ourWalletData_corrupt', localStorage.getItem('ourWalletData') || ''); } catch (e2) {}
+                return [];
+            }
+        }
+        function persistData() {
+            try { localStorage.setItem('ourWalletData', JSON.stringify(allTransactions)); return true; }
+            catch (e) {
+                if (!persistWarned) { persistWarned = true; window.showToast('บันทึกในเครื่องไม่ได้ (พื้นที่เต็มหรือโหมดส่วนตัว) ข้อมูลจะอยู่บน Google Sheet เท่านั้น', 'error'); }
+                return false;
+            }
+        }
 
         // ===== สาเหตุที่ซิงค์ไม่ได้ + วิธีแก้ (แสดงในแถบสถานะ / หน้าตรวจสอบการซิงค์) =====
         const SYNC_ERRORS = {
@@ -934,12 +969,13 @@
             if(document.getElementById('sheetsUrlInput')) document.getElementById('sheetsUrlInput').value = window.sheetsWebhookUrl;
             document.getElementById('sheetsKeyInput').value = window.sheetsKey;
 
-            allTransactions = JSON.parse(localStorage.getItem('ourWalletData')) || [];
+            allTransactions = loadLocalData();
             ensureRecurring();
             setupListeners();
             setupQuickEntry();
             renderDashboard();
             updateSyncStatus();
+            if (dataRecovered) window.showToast('ข้อมูลในเครื่องเสียหาย กำลังดึงข้อมูลใหม่จาก Google Sheet', 'error');
             flushQueue();
             syncFromSheets();
             setTimeout(() => {
@@ -1244,7 +1280,7 @@
                 }
             }
 
-            localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+            persistData();
             renderDashboard();
             if(addedCount > 0) window.showToast(`คัดลอก ${addedCount} รายการสำเร็จ!`);
             else window.showToast("รายการเหล่านี้ถูกคัดลอกมาแล้วครับ", "error");
@@ -1299,7 +1335,7 @@
             else allTransactions.push(data);
             ensureRecurring();
 
-            localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+            persistData();
             renderSoon();
             window.showToast(wasEdit ? "อัปเดตข้อมูลแล้ว" : "บันทึกสำเร็จ", "success");
             currentEditId = null;
@@ -1367,7 +1403,7 @@
                         }
                         if (localOnly.length || budgetKeys.length) {
                             allTransactions = [...result.data, ...localOnly];
-                            localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+                            persistData();
                             for (const t of localOnly) await sendToSheets(t);
                             for (const key of budgetKeys) await sendToSheets({ action: 'budget', month: key.slice(7), amount: Number(localStorage.getItem(key)) });
                             renderDashboard();
@@ -1387,7 +1423,7 @@
                             window.showToast(`มีข้อมูลใหม่จากอีกเครื่อง ${changedIds.length} รายการ`, 'success');
                         }
                         allTransactions = result.data;
-                        localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+                        persistData();
                         changed = true;
                     }
                     if (result.budgets) {
@@ -2032,7 +2068,7 @@
                     last = next;
                 }
             });
-            if (changed) localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+            if (changed) persistData();
             return changed;
         }
 
@@ -2178,6 +2214,7 @@
 
         // ===== เอฟเฟกต์ระดับแอปทางการ: เลื่อนถึงแล้วค่อยปรากฏ / สั่นเมื่อกรอกผิด / ติ๊กถูกเมื่อบันทึกสำเร็จ =====
         function initReveal() {
+            window.__revealReady = true;
             const els = [...document.querySelectorAll('.reveal')];
             if (prefersReduced() || !('IntersectionObserver' in window)) { els.forEach(e => e.classList.add('in-view')); return; }
             const io = new IntersectionObserver((entries) => entries.forEach(en => {
@@ -2313,6 +2350,14 @@
             };
             card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end);
             card.addEventListener('contextmenu', (e) => e.preventDefault());
+            // ใช้คีย์บอร์ด/โปรแกรมอ่านหน้าจอได้: Enter/Space = แก้ไข, Delete = ลบ
+            card.tabIndex = 0; card.setAttribute('role', 'button');
+            card.setAttribute('aria-label', `${t.description || ''} ${formatMoney(t.type === 'income' ? t.netAmount : t.amount)} กด Enter เพื่อแก้ไข กด Delete เพื่อลบ`);
+            card.addEventListener('keydown', (e) => {
+                if (e.target !== card) return;
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.editItem(t.id); }
+                else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); window.deleteItem(t.id); }
+            });
             card.addEventListener('click', (e) => {
                 if (e.target.closest('button') || moved) return;
                 window.editItem(t.id);
@@ -2351,13 +2396,13 @@
             copy.date = today; copy.monthYear = today.slice(0, 7); copy.timestamp = Date.now();
             if (copy.type === 'expense') { copy.isCompleted = false; copy.payMode = copy.payMode || 'normal'; }
             allTransactions.push(copy);
-            localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+            persistData();
             highlightId = copy.id;
             sendToSheets(copy);
             renderDashboard();
             window.showToast(`ทำซ้ำเป็นรายการวันนี้แล้ว (${formatDate(today)})`, 'success', { duration: 5000, action: { label: 'เลิกทำ', fn: () => {
                 allTransactions = allTransactions.filter(x => x.id !== copy.id);
-                localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+                persistData();
                 sendToSheets({ action: 'delete', id: copy.id });
                 renderDashboard();
             } } });
@@ -2652,7 +2697,7 @@
             }
             const prevBefore = prevOfSeries ? { ...prevOfSeries } : null;
             if (prevOfSeries) { prevOfSeries.stopAuto = true; prevOfSeries.timestamp = Date.now(); sendToSheets(prevOfSeries); }
-            allTransactions = allTransactions.filter(t => t.id !== id); localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+            allTransactions = allTransactions.filter(t => t.id !== id); persistData();
             const row = document.querySelector(`#transactionsList [data-id="${String(id).replace(/"/g, '')}"]`);
             if (collapseOut(row)) setTimeout(renderDashboard, 340); else renderDashboard();
             sendToSheets({action: 'delete', id: id});
@@ -2664,7 +2709,7 @@
                     const live = allTransactions.find(t => t.id === prevBefore.id);
                     if (live) { if (prevBefore.stopAuto) live.stopAuto = true; else delete live.stopAuto; live.timestamp = Date.now(); sendToSheets(live); }
                 }
-                localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+                persistData();
                 highlightId = item.id;
                 sendToSheets(item);
                 renderDashboard();
