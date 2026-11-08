@@ -21,7 +21,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.10.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.12.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -32,7 +32,7 @@
     </script>
     <style>
         body { font-family: 'Prompt', sans-serif; background-color: #fff0f3; color: #333; -webkit-tap-highlight-color: transparent; }
-        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); }
+        .glass-card { background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); }
         .gradient-text { background: linear-gradient(135deg, #ff4d6d, #c9184a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -125,6 +125,50 @@
         @supports (animation-timeline: scroll()) {
             .app-header { animation: headerLift linear both; animation-timeline: scroll(root); animation-range: 0 90px; }
         }
+        /* ===== กรอกข้อมูลเร็ว: ชิปเลือกแทนเมนูดรอปดาวน์ ===== */
+        .sr-only-select { position: absolute !important; width: 1px !important; height: 1px !important; margin: -1px !important; padding: 0 !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; border: 0 !important; }
+        .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        .chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.8rem; border-radius: 999px; border: 1px solid #e5e7eb; background: #fff; font-size: 0.8rem; font-weight: 600; color: #4b5563; transition: transform 0.45s var(--spring), background-color 0.2s ease, color 0.2s ease, box-shadow 0.25s ease, border-color 0.2s ease; }
+        .chip.active { background: var(--chip-active, #ff4d6d); color: #fff; border-color: transparent; box-shadow: 0 8px 16px -8px var(--chip-active, #ff4d6d); transform: scale(1.04); }
+        .chip.soft { background: #f9fafb; font-weight: 500; color: #6b7280; }
+        .chip .avatar { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 800; }
+        #expenseModal { --chip-active: #ef4444; }
+        #incomeModal { --chip-active: #10b981; }
+        /* ===== พื้นหลังมีชีวิต: แสงสีลอยช้าๆ (ใช้ transform อย่างเดียว เบา เสถียร) ===== */
+        body::before { content: ""; position: fixed; left: -25%; top: -15%; width: 150%; height: 85vh; z-index: -1; pointer-events: none; will-change: transform;
+            background: radial-gradient(38% 42% at 18% 30%, rgba(255, 77, 109, 0.17), transparent 70%), radial-gradient(34% 38% at 82% 18%, rgba(255, 179, 193, 0.42), transparent 70%), radial-gradient(40% 40% at 62% 82%, rgba(201, 24, 74, 0.10), transparent 70%);
+            animation: bgDrift 30s ease-in-out infinite alternate; }
+        @keyframes bgDrift { to { transform: translate3d(7%, 5%, 0) scale(1.15) rotate(3deg); } }
+        /* ===== แถวรายการ: ปัดซ้าย=ลบ ปัดขวา=จ่ายแล้ว แตะ=แก้ไข ===== */
+        .swipe-row { position: relative; border-radius: 1rem; }
+        .swipe-bg { position: absolute; inset: 0; border-radius: 1rem; display: flex; justify-content: space-between; align-items: center; padding: 0 1.25rem; font-weight: 700; font-size: 0.85rem; transition: background-color 0.15s ease; }
+        .swipe-row[data-swipe="right"] .swipe-bg { background: #d1fae5; }
+        .swipe-row[data-swipe="left"] .swipe-bg { background: #ef4444; color: #fff; }
+        .swipe-act { opacity: 0; transition: opacity 0.15s ease; }
+        .swipe-row[data-swipe="right"] .swipe-paid { opacity: 1; color: #047857; }
+        .swipe-row[data-swipe="left"] .swipe-del { opacity: 1; }
+        .swipe-row .row-card { position: relative; background: #fff; touch-action: pan-y; cursor: pointer; -webkit-user-select: none; user-select: none; will-change: transform; transition: transform 0.45s var(--spring); }
+        /* ===== เส้นแนวโน้มในการ์ดรายรับ/รายจ่าย ===== */
+        .spark { position: absolute; left: 18px; right: 18px; bottom: 10px; width: calc(100% - 36px); height: 22px; overflow: visible; }
+        .spark-line.draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: sparkDraw 1.1s var(--ease-out) 0.2s forwards; }
+        @keyframes sparkDraw { to { stroke-dashoffset: 0; } }
+        .spark-dot { transform-origin: center; transform-box: fill-box; }
+        .spark-dot.draw { opacity: 0; animation: sparkDot 0.5s var(--spring) 1s forwards; }
+        @keyframes sparkDot { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+        /* ===== ปุ่มแสดงระลอกคลื่นตอนแตะ ===== */
+        .ripple { position: relative; overflow: hidden; }
+        .ripple-dot { position: absolute; border-radius: 50%; background: currentColor; opacity: 0.22; transform: scale(0); animation: rippleOut 0.65s ease-out forwards; pointer-events: none; }
+        @keyframes rippleOut { to { transform: scale(1); opacity: 0; } }
+        /* ===== ปุ่มรับเงิน/จ่ายเงิน: ซ่อนตอนเลื่อนลง โผล่ตอนเลื่อนขึ้น ===== */
+        .fab-bar { transition: transform 0.5s var(--ease-out), opacity 0.3s ease; }
+        .fab-bar.fab-hidden { --tw-translate-y: 160%; opacity: 0.4; }
+        /* ===== ฉลองเมื่อจ่ายบิลครบ ===== */
+        .confetti-box { position: fixed; inset: 0; pointer-events: none; z-index: 70; overflow: hidden; }
+        .confetti-piece { position: absolute; left: 50%; top: 55%; width: 9px; height: 14px; border-radius: 2px; opacity: 0; animation: confettiFly 1.6s cubic-bezier(0.15, 0.8, 0.3, 1) forwards; }
+        @keyframes confettiFly { 0% { opacity: 1; transform: translate(0, 0) rotate(0); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); } }
+        /* ===== ปุ่มเลิกทำใน toast ===== */
+        .toast-action { margin-left: 0.5rem; padding: 0.25rem 0.7rem; border-radius: 999px; background: rgba(255,255,255,0.16); color: #fbbf24; font-weight: 700; font-size: 0.8rem; }
+        .submit-sticky { box-shadow: 0 -20px 16px 4px #fff !important; }
         /* --- ปรับสำหรับมือถือ --- */
         html { -webkit-text-size-adjust: 100%; }
         body { overscroll-behavior-y: none; }
@@ -206,11 +250,11 @@
                 </div>
             </div>
 
-            <div class="glass-card rounded-3xl p-5 border-l-4 border-income animate-scale-in" style="animation-delay: 0.1s;">
+            <div class="glass-card relative rounded-3xl p-5 pb-11 border-l-4 border-income animate-scale-in" style="animation-delay: 0.1s;"><svg id="sparkInc" class="spark" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true"></svg>
                 <div class="flex items-center gap-2 mb-2 text-income"><div class="bg-green-100 p-1.5 rounded-lg"><i class="ph-bold ph-trend-up text-lg"></i></div><p class="font-medium text-sm">รายรับ</p></div>
                 <p id="totalIncome" class="text-xl font-bold text-gray-800">฿0.00</p>
             </div>
-            <div class="glass-card rounded-3xl p-5 border-l-4 border-expense animate-scale-in" style="animation-delay: 0.2s;">
+            <div class="glass-card relative rounded-3xl p-5 pb-11 border-l-4 border-expense animate-scale-in" style="animation-delay: 0.2s;"><svg id="sparkExp" class="spark" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true"></svg>
                 <div class="flex items-center gap-2 mb-2 text-expense"><div class="bg-red-100 p-1.5 rounded-lg"><i class="ph-bold ph-trend-down text-lg"></i></div><p class="font-medium text-sm">รายจ่าย</p></div>
                 <p id="totalExpense" class="text-xl font-bold text-gray-800">฿0.00</p>
             </div>
@@ -293,7 +337,7 @@
     </div>
 
     <!-- Floating Action Buttons -->
-    <div class="fixed left-1/2 -translate-x-1/2 flex gap-3 w-full max-w-sm px-4 z-40" style="bottom: calc(1rem + env(safe-area-inset-bottom, 0px))">
+    <div id="fabBar" class="fab-bar fixed left-1/2 -translate-x-1/2 flex gap-3 w-full max-w-sm px-4 z-40" style="bottom: calc(1rem + env(safe-area-inset-bottom, 0px))">
         <button onclick="window.openModal('incomeModal')" class="flex-1 bg-income hover:bg-green-600 text-white py-4 rounded-2xl shadow-[0_8px_16px_rgba(16,185,129,0.3)] font-semibold transition-all active:scale-95 flex items-center justify-center gap-2"><i class="ph-bold ph-plus-circle text-2xl"></i> รับเงิน</button>
         <button onclick="window.openModal('expenseModal')" class="flex-1 bg-expense hover:bg-red-600 text-white py-4 rounded-2xl shadow-[0_8px_16px_rgba(239,68,68,0.3)] font-semibold transition-all active:scale-95 flex items-center justify-center gap-2"><i class="ph-bold ph-minus-circle text-2xl"></i> จ่ายเงิน</button>
     </div>
@@ -335,7 +379,7 @@
             </div>
             <div class="p-6 overflow-y-auto pb-safe">
                 <form id="incomeForm" class="space-y-4">
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-4">
                         <div><label class="block text-sm font-medium text-gray-700 mb-1">วันที่รับเงิน</label><input type="date" id="incDate" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200 outline-none"></div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">คนรับเงิน</label>
@@ -355,13 +399,13 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">หัก ณ ที่จ่าย</label>
                         <select id="incTaxRate" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm">
-                            <option value="0">ไม่หักภาษี (รับเต็ม 100%)</option><option value="3">หัก 3%</option>
+                            <option value="0" data-short="ไม่หักภาษี">ไม่หักภาษี (รับเต็ม 100%)</option><option value="3" data-short="หัก 3%">หัก 3%</option>
                         </select>
                     </div>
                     <div class="bg-green-50/50 p-4 rounded-xl border border-green-100 flex justify-between items-center">
                         <span class="text-sm text-gray-600 font-medium">ยอดรับสุทธิ:</span><span id="incNetAmountDisplay" class="text-xl font-bold text-green-600">฿0.00</span>
                     </div>
-                    <button type="submit" id="incSubmitBtn" class="sticky bottom-0 w-full py-3.5 rounded-xl font-medium text-white bg-green-500 hover:bg-green-600 shadow-lg shadow-green-200">บันทึกรายรับ</button>
+                    <button type="submit" id="incSubmitBtn" class="submit-sticky sticky bottom-0 w-full py-3.5 rounded-xl font-medium text-white bg-green-500 hover:bg-green-600 shadow-lg shadow-green-200">บันทึกรายรับ</button>
                 </form>
             </div>
         </div>
@@ -374,7 +418,7 @@
             </div>
             <div class="p-6 overflow-y-auto pb-safe">
                 <form id="expenseForm" class="space-y-4">
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
                             <select id="expCategory" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white">
@@ -395,22 +439,22 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">ช่องทางจ่าย</label>
                         <select id="expBank" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white">
                             <option value="เงินสด">เงินสด</option>
-                            <option value="KBank">KBank - กสิกรไทย</option>
-                            <option value="SCB">SCB - ไทยพาณิชย์</option>
-                            <option value="BBL">BBL - กรุงเทพ</option>
-                            <option value="KTB">KTB - กรุงไทย</option>
+                            <option value="KBank" data-short="KBank">KBank - กสิกรไทย</option>
+                            <option value="SCB" data-short="SCB">SCB - ไทยพาณิชย์</option>
+                            <option value="BBL" data-short="BBL">BBL - กรุงเทพ</option>
+                            <option value="KTB" data-short="KTB">KTB - กรุงไทย</option>
                             <option value="กรุงศรี">กรุงศรี</option>
-                            <option value="ttb">ttb - ทหารไทยธนชาต</option>
-                            <option value="ออมสิน">ออมสิน (GSB)</option>
-                            <option value="Credit Card">บัตรเครดิต</option>
+                            <option value="ttb" data-short="ttb">ttb - ทหารไทยธนชาต</option>
+                            <option value="ออมสิน" data-short="ออมสิน">ออมสิน (GSB)</option>
+                            <option value="Credit Card" data-short="บัตรเครดิต">บัตรเครดิต</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">รูปแบบการจ่าย</label>
                         <select id="expPayMode" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white">
-                            <option value="normal">จ่ายปกติ (ครั้งเดียว)</option>
-                            <option value="minpay">ผ่อนบัตร - จ่ายขั้นต่ำ (จ่ายไม่เต็มยอดได้)</option>
-                            <option value="installment">ผ่อนบัตร - จ่ายเป็นงวด (ยอดคงที่)</option>
+                            <option value="normal" data-short="จ่ายปกติ">จ่ายปกติ (ครั้งเดียว)</option>
+                            <option value="minpay" data-short="ผ่อน · ขั้นต่ำ">ผ่อนบัตร - จ่ายขั้นต่ำ (จ่ายไม่เต็มยอดได้)</option>
+                            <option value="installment" data-short="ผ่อน · รายงวด">ผ่อนบัตร - จ่ายเป็นงวด (ยอดคงที่)</option>
                         </select>
                     </div>
                     <div id="expMinBox" class="hidden space-y-2 p-3 bg-orange-50/60 rounded-xl border border-orange-100">
@@ -435,7 +479,7 @@
                         <input type="checkbox" id="expCompleted" class="w-5 h-5 text-red-600 rounded">
                         <label for="expCompleted" class="text-sm font-medium text-gray-700">จ่ายแล้วเรียบร้อย</label>
                     </div>
-                    <button type="submit" id="expSubmitBtn" class="sticky bottom-0 w-full py-3.5 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200">บันทึกรายจ่าย</button>
+                    <button type="submit" id="expSubmitBtn" class="submit-sticky sticky bottom-0 w-full py-3.5 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200">บันทึกรายจ่าย</button>
                 </form>
             </div>
         </div>
@@ -701,6 +745,7 @@
             allTransactions = JSON.parse(localStorage.getItem('ourWalletData')) || [];
             ensureRecurring();
             setupListeners();
+            setupQuickEntry();
             renderDashboard();
             updateSyncStatus();
             flushQueue();
@@ -845,6 +890,7 @@
                     document.getElementById('incNetAmountDisplay').textContent = "฿0.00";
                     document.getElementById('incModalTitle').innerHTML = '<i class="ph-fill ph-plus-circle"></i> เพิ่มรายรับ';
                     document.getElementById('incSubmitBtn').textContent = "บันทึกรายรับ";
+                    applyLastChoices();
                 }
                 if(id === 'expenseModal') {
                     document.getElementById('expenseForm').reset(); updateExpenseModeUI();
@@ -852,8 +898,10 @@
                     document.getElementById('expDueDate').value = localDateStr();
                     document.getElementById('expModalTitle').innerHTML = '<i class="ph-fill ph-minus-circle"></i> เพิ่มรายจ่าย';
                     document.getElementById('expSubmitBtn').textContent = "บันทึกรายจ่าย";
+                    applyLastChoices();
                 }
             }
+            refreshPickers();
         };
 
         // ===== ปิดหน้าต่างแบบมีแอนิเมชัน + ปัดลงเพื่อปิด =====
@@ -1032,12 +1080,12 @@
                 setSelect('expWho', item.who || 'Anas');
                 setSelect('expCategory', item.category);
                 document.getElementById('expDesc').value = item.description;
-                document.getElementById('expBank').value = item.bank;
+                setSelect('expBank', item.bank || 'เงินสด');
                 document.getElementById('expCurInstall').value = item.currentInstallment || '';
                 document.getElementById('expTotalInstall').value = item.totalInstallments || '';
                 document.getElementById('expAmount').value = item.amount;
                 const mode = item.payMode || (item.totalInstallments ? 'installment' : 'normal');
-                document.getElementById('expPayMode').value = mode;
+                setSelect('expPayMode', mode);
                 document.getElementById('expFullAmount').value = item.fullAmount ?? '';
                 document.getElementById('expMinAmount').value = item.minAmount ?? '';
                 document.getElementById('expInstallAmount').value = item.installmentAmount ?? (mode === 'installment' ? item.amount : '');
@@ -1051,6 +1099,8 @@
 
         window.saveAndSync = async (data, modalId) => {
             const wasEdit = !!currentEditId;
+            if (data.type === 'expense' && data.isCompleted) celebrateArmed = Date.now();
+            try { if (data.who) localStorage.setItem('lastWho', data.who); if (data.type === 'expense' && data.bank) localStorage.setItem('lastBank', data.bank); } catch (e) {}
             window.closeModal();
             highlightId = data.id;
             const index = allTransactions.findIndex(t => t.id === data.id);
@@ -1333,6 +1383,85 @@
                 el.add(new Option(label || value, value));
             }
             el.value = value;
+            if (PICKERS[id]) PICKERS[id]();
+        }
+
+        // ===== กรอกข้อมูลเร็ว: ชิปเลือก / ปุ่มวันที่ / ปุ่มเพิ่มจำนวนเงิน / รายการล่าสุด =====
+        const PICKERS = {};
+        const WHO_COLORS = { Anas: '#3b82f6', Phada: '#ec4899' };
+        const haptic = (ms = 10) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} };
+        function enhancePicker(id, kind) {
+            const sel = document.getElementById(id);
+            sel.classList.add('sr-only-select');
+            const wrap = document.createElement('div');
+            wrap.className = 'chips'; wrap.dataset.for = id;
+            sel.insertAdjacentElement('beforebegin', wrap);
+            const inner = (o) => {
+                const label = escapeHTML(o.dataset.short || o.textContent.trim());
+                if (kind === 'who') return `<span class="avatar" style="background:${WHO_COLORS[o.value] || '#64748b'}">${escapeHTML(String(o.value).charAt(0).toUpperCase())}</span>${label}`;
+                if (kind === 'bank') return `${bankBadge(o.value, 20)}${label}`;
+                return label;
+            };
+            const draw = () => {
+                wrap.innerHTML = '';
+                [...sel.options].forEach(o => {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'chip' + (o.value === sel.value ? ' active' : '');
+                    b.dataset.value = o.value;
+                    b.innerHTML = inner(o);
+                    b.addEventListener('click', () => {
+                        if (sel.value === o.value) return;
+                        sel.value = o.value;
+                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                        haptic(8);
+                    });
+                    wrap.appendChild(b);
+                });
+            };
+            sel.addEventListener('change', draw);
+            PICKERS[id] = draw;
+            draw();
+        }
+        const refreshPickers = () => Object.values(PICKERS).forEach(f => f());
+
+        function addChipsRow(afterEl, items, cls = '') {
+            const row = document.createElement('div');
+            row.className = 'chips mt-1.5 ' + cls;
+            items.forEach(([label, fn]) => {
+                const b = document.createElement('button');
+                b.type = 'button'; b.className = 'chip soft'; b.textContent = label;
+                b.addEventListener('click', () => { fn(); haptic(6); });
+                row.appendChild(b);
+            });
+            afterEl.insertAdjacentElement('afterend', row);
+            return row;
+        }
+        const fire = (el) => { el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+        function setupQuickEntry() {
+            enhancePicker('expCategory'); enhancePicker('expWho', 'who'); enhancePicker('expBank', 'bank'); enhancePicker('expPayMode');
+            enhancePicker('incCategory'); enhancePicker('incWho', 'who'); enhancePicker('incTaxRate');
+            const addDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localDateStr(d); };
+            const dateRow = (id, items) => addChipsRow(document.getElementById(id), items.map(([label, fn]) => [label, () => { const el = document.getElementById(id); el.value = fn(); fire(el); }]));
+            dateRow('expDueDate', [['วันนี้', () => addDays(0)], ['พรุ่งนี้', () => addDays(1)], ['+7 วัน', () => addDays(7)], ['สิ้นเดือน', () => { const d = new Date(); return localDateStr(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }]]);
+            dateRow('incDate', [['วันนี้', () => addDays(0)], ['เมื่อวาน', () => addDays(-1)], ['วันที่ 1', () => { const d = new Date(); return localDateStr(new Date(d.getFullYear(), d.getMonth(), 1)); }]]);
+            const amountRow = (id) => addChipsRow(document.getElementById(id), [...[100, 500, 1000, 5000].map(n => ['+' + n.toLocaleString('en-US'), () => { const el = document.getElementById(id); el.value = round2((parseFloat(el.value) || 0) + n); fire(el); }]), ['ล้าง', () => { const el = document.getElementById(id); el.value = ''; fire(el); }]]);
+            amountRow('expAmount'); amountRow('incAmount');
+            ['exp', 'inc'].forEach(p => {
+                const row = document.createElement('div');
+                row.id = p + 'Recent'; row.className = 'chips mt-1.5';
+                document.getElementById(p + 'Desc').insertAdjacentElement('afterend', row);
+            });
+        }
+        function applyLastChoices() {
+            let who = null, bank = null;
+            try { who = localStorage.getItem('lastWho'); bank = localStorage.getItem('lastBank'); } catch (e) {}
+            if (who) { setSelect('expWho', who); setSelect('incWho', who); }
+            if (bank) setSelect('expBank', bank);
+        }
+        function useRecent(prefix, text) {
+            const el = document.getElementById(prefix + 'Desc');
+            el.value = text; fire(el);
         }
 
         function renderDashboard() {
@@ -1395,13 +1524,15 @@
                     const safeCat = escapeHTML(t.category);
                     const whoBadge = t.who && t.who !== 'กองกลาง' ? `<span class="bg-blue-50 text-blue-600 px-1 rounded ml-1">${escapeHTML(t.who)}</span>` : '';
 
-                    const div = document.createElement('div');
-                    div.dataset.id = t.id;
-                    div.className = "glass-card rounded-2xl p-4 flex justify-between items-center group";
+                    const row = document.createElement('div');
+                    row.className = 'swipe-row';
+                    row.dataset.id = t.id;
                     if (anim || t.id === highlightId) {
-                        div.classList.add('list-item-enter');
-                        if (anim) div.style.animationDelay = `${Math.min(i, 8) * 0.045}s`;
+                        row.classList.add('list-item-enter');
+                        if (anim) row.style.animationDelay = `${Math.min(i, 8) * 0.045}s`;
                     }
+                    const div = document.createElement('div');
+                    div.className = "row-card glass-card rounded-2xl p-4 flex justify-between items-center group";
 
                     if (t.type === 'income') {
                         const taxBadge = t.taxRate > 0 ? `<span class="text-yellow-600 bg-yellow-50 px-1 rounded text-xs ml-1">หัก ${t.taxRate}%</span>` : '';
@@ -1412,8 +1543,7 @@
                             </div>
                             <div class="text-right flex items-center shrink-0">
                                 <div><p class="font-bold text-green-600 mr-2">+${formatMoney(t.netAmount)}</p></div>
-                                <button onclick="window.editItem('${t.id}')" class="text-gray-300 hover:text-blue-500 w-9 h-10 flex items-center justify-center"><i class="ph-fill ph-pencil-simple text-lg"></i></button>
-                                <button onclick="window.deleteItem('${t.id}')" class="text-gray-300 hover:text-red-500 w-9 h-10 flex items-center justify-center"><i class="ph-fill ph-trash text-lg"></i></button>
+                                <i class="ph-bold ph-caret-right text-gray-300 text-sm ml-1" aria-hidden="true"></i>
                             </div>
                         `;
                     } else {
@@ -1429,13 +1559,17 @@
                                     <p class="font-bold text-red-600">-${formatMoney(t.amount)}</p>
                                     <button onclick="window.toggleStatus('${t.id}')" class="text-xs flex items-center gap-1 ${t.isCompleted ? 'text-green-600' : 'text-orange-500'}"><i class="ph-fill ${t.isCompleted ? 'ph-check-circle' : 'ph-clock'}"></i> ${t.isCompleted ? 'จ่ายแล้ว' : 'รอจ่าย'}</button>
                                 </div>
-                                <button onclick="window.editItem('${t.id}')" class="text-gray-300 hover:text-blue-500 w-9 h-10 flex items-center justify-center"><i class="ph-fill ph-pencil-simple text-lg"></i></button>
-                                <button onclick="window.deleteItem('${t.id}')" class="text-gray-300 hover:text-red-500 w-9 h-10 flex items-center justify-center"><i class="ph-fill ph-trash text-lg"></i></button>
+                                <i class="ph-bold ph-caret-right text-gray-300 text-sm ml-1" aria-hidden="true"></i>
                             </div>
                         `;
                     }
                     div.classList.add('border-l-4', t.type === 'income' ? 'border-l-income' : 'border-l-expense');
-                    list.appendChild(div);
+                    const bg = document.createElement('div');
+                    bg.className = 'swipe-bg';
+                    bg.innerHTML = `<span class="swipe-act swipe-paid">${t.type === 'expense' ? (t.isCompleted ? '↩ ยังไม่จ่าย' : '✓ จ่ายแล้ว') : ''}</span><span class="swipe-act swipe-del">ลบ 🗑</span>`;
+                    row.append(bg, div);
+                    attachSwipe(row, div, t);
+                    list.appendChild(row);
                 });
             }
 
@@ -1445,6 +1579,7 @@
             renderStats(anim);
             updateSuggestions();
             renderBreakdowns(anim);
+            renderSparks(anim);
             highlightId = null;
 
             // --- ระบบงบประมาณ (Budget) ---
@@ -1550,20 +1685,20 @@
         // ===== ธนาคาร: สีและสัญลักษณ์ =====
         const BANKS = {
             'เงินสด': { abbr: '฿', color: '#64748b', fg: '#ffffff', name: 'เงินสด' },
-            'KBank': { abbr: 'KBank', color: '#138f2d', fg: '#ffffff', name: 'กสิกรไทย' },
+            'KBank': { abbr: 'KBank', tiny: 'K', color: '#138f2d', fg: '#ffffff', name: 'กสิกรไทย' },
             'SCB': { abbr: 'SCB', color: '#4e2e7f', fg: '#ffffff', name: 'ไทยพาณิชย์' },
             'BBL': { abbr: 'BBL', color: '#1e4598', fg: '#ffffff', name: 'กรุงเทพ' },
             'KTB': { abbr: 'KTB', color: '#1ba5e0', fg: '#ffffff', name: 'กรุงไทย' },
             'กรุงศรี': { abbr: 'BAY', color: '#fec43b', fg: '#5b4300', name: 'กรุงศรี' },
             'ttb': { abbr: 'ttb', color: '#ee6b1e', fg: '#ffffff', name: 'ทหารไทยธนชาต' },
             'ออมสิน': { abbr: 'GSB', color: '#eb0f7f', fg: '#ffffff', name: 'ออมสิน' },
-            'Credit Card': { abbr: 'CARD', color: '#1f2937', fg: '#ffffff', name: 'บัตรเครดิต' }
+            'Credit Card': { abbr: 'CARD', tiny: 'CC', color: '#1f2937', fg: '#ffffff', name: 'บัตรเครดิต' }
         };
         const bankMeta = (b) => BANKS[b] || { abbr: (b || '?').slice(0, 4), color: '#94a3b8', fg: '#ffffff', name: b || '-' };
         const bankBadge = (b, size = 40) => {
             const m = bankMeta(b);
             const fs = size >= 40 ? 10 : 8;
-            return `<span class="inline-flex items-center justify-center font-extrabold shrink-0" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.3)}px;background:${m.color};color:${m.fg};font-size:${fs}px;letter-spacing:-0.02em">${escapeHTML(m.abbr)}</span>`;
+            return `<span class="inline-flex items-center justify-center font-extrabold shrink-0" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.3)}px;background:${m.color};color:${m.fg};font-size:${fs}px;letter-spacing:-0.02em">${escapeHTML(size < 28 && m.tiny ? m.tiny : m.abbr)}</span>`;
         };
         const bankChip = (b) => { const m = bankMeta(b); return `<span class="px-1.5 rounded text-[10px] font-bold" style="background:${m.color};color:${m.fg}">${escapeHTML(m.abbr)}</span>`; };
 
@@ -1712,6 +1847,11 @@
             const nextYM = addMonth(currentMonthYear, 1);
             const bills = allTransactions.filter(t => t.type === 'expense' && !t.isCompleted && t.monthYear <= nextYM)
                 .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (Number(b.amount) || 0) - (Number(a.amount) || 0)));
+            if (celebrateArmed && Date.now() - celebrateArmed < 2500 && lastUnpaidCount > 0 && bills.length === 0) {
+                burstConfetti();
+                window.showToast('จ่ายครบทุกบิลแล้ว 🎉', 'success');
+            }
+            celebrateArmed = 0; lastUnpaidCount = bills.length;
             if (bills.length === 0) { box.innerHTML = ''; section.classList.add('hidden'); return; }
             section.classList.remove('hidden');
 
@@ -1783,6 +1923,129 @@
             }
         };
 
+        // ===== ปัดแถวรายการ: ซ้าย=ลบ (เลิกทำได้) ขวา=จ่ายแล้ว แตะ=แก้ไข =====
+        function attachSwipe(row, card, t) {
+            let x0 = null, y0 = null, dx = 0, dragging = false, moved = false;
+            const isExpense = t.type === 'expense';
+            card.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('button') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+                x0 = e.clientX; y0 = e.clientY; dx = 0; dragging = false; moved = false;
+            });
+            card.addEventListener('pointermove', (e) => {
+                if (x0 === null) return;
+                const mx = e.clientX - x0, my = e.clientY - y0;
+                if (!dragging) {
+                    if (Math.abs(mx) > 10 && Math.abs(mx) > Math.abs(my) * 1.4) { dragging = true; moved = true; try { card.setPointerCapture(e.pointerId); } catch (err) {} card.style.transition = 'none'; }
+                    else if (Math.abs(my) > 10) { x0 = null; return; }   // กำลังเลื่อนหน้าจอในแนวตั้ง
+                }
+                if (dragging) {
+                    dx = Math.max(isExpense ? -150 : -150, Math.min(isExpense ? 150 : 0, mx));
+                    card.style.transform = `translateX(${dx}px)`;
+                    row.dataset.swipe = dx < -12 ? 'left' : dx > 12 ? 'right' : '';
+                }
+            });
+            const end = () => {
+                if (x0 === null) return;
+                const wasDragging = dragging, finalDx = dx;
+                x0 = null; dragging = false;
+                if (!wasDragging) return;
+                card.style.transition = '';
+                setTimeout(() => { moved = false; }, 60);
+                if (finalDx < -90) {
+                    haptic(18);
+                    card.style.transform = 'translateX(-110%)';
+                    window.deleteItem(t.id);
+                } else if (finalDx > 90 && isExpense) {
+                    haptic(18);
+                    card.style.transform = '';
+                    const cur = allTransactions.find(x => x.id === t.id);
+                    if (cur) {
+                        const wasPaid = cur.isCompleted;
+                        window.toggleStatus(t.id);
+                        window.showToast(wasPaid ? 'เปลี่ยนเป็นยังไม่จ่าย' : 'จ่ายแล้ว ✓', 'success', { action: { label: 'เลิกทำ', fn: () => window.toggleStatus(t.id) }, duration: 5000 });
+                    }
+                } else {
+                    card.style.transform = '';
+                }
+                row.dataset.swipe = '';
+            };
+            card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end);
+            card.addEventListener('click', (e) => {
+                if (e.target.closest('button') || moved) return;
+                window.editItem(t.id);
+            });
+        }
+
+        // ===== เส้นแนวโน้ม 6 เดือน ในการ์ดรายรับ/รายจ่าย =====
+        function renderSparks(anim) {
+            const months = [];
+            for (let k = 5; k >= 0; k--) months.push(addMonth(currentMonthYear, -k));
+            const sums = months.map(m => {
+                let inc = 0, exp = 0;
+                allTransactions.forEach(t => {
+                    if (t.monthYear !== m) return;
+                    if (t.type === 'income') inc += Number(t.netAmount) || 0; else exp += Number(t.amount) || 0;
+                });
+                return { inc, exp };
+            });
+            const draw = (id, key, color) => {
+                const vals = sums.map(x => x[key]);
+                const max = Math.max(...vals);
+                const svg = document.getElementById(id);
+                if (!max) { svg.innerHTML = ''; return; }
+                const pts = vals.map((v, i) => [i * (96 / 5) + 2, 19 - (v / max) * 15]);
+                const poly = pts.map(p => p.join(',')).join(' ');
+                const last = pts[pts.length - 1];
+                svg.innerHTML = `<polygon points="2,21 ${poly} 98,21" fill="${color}" opacity="0.12"/><polyline class="spark-line ${anim ? 'draw' : ''}" pathLength="1" points="${poly}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="spark-dot ${anim ? 'draw' : ''}" cx="${last[0]}" cy="${last[1]}" r="3" fill="${color}"/>`;
+            };
+            draw('sparkInc', 'inc', '#10b981'); draw('sparkExp', 'exp', '#ef4444');
+        }
+
+        // ===== ฉลองเมื่อจ่ายบิลครบทุกใบ =====
+        let celebrateArmed = 0, lastUnpaidCount = null;
+        function burstConfetti() {
+            if (prefersReduced()) return;
+            const box = document.createElement('div');
+            box.className = 'confetti-box';
+            const colors = ['#ff4d6d', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899'];
+            for (let n = 0; n < 40; n++) {
+                const p = document.createElement('span');
+                p.className = 'confetti-piece';
+                const ang = (Math.PI * 2 * n) / 40 + Math.random() * 0.4, dist = 120 + Math.random() * 190;
+                p.style.cssText = `background:${colors[n % colors.length]};--dx:${Math.cos(ang) * dist}px;--dy:${Math.sin(ang) * dist - 90}px;--rot:${Math.random() * 720 - 360}deg;animation-delay:${Math.random() * 0.12}s`;
+                box.appendChild(p);
+            }
+            document.body.appendChild(box);
+            setTimeout(() => box.remove(), 2000);
+        }
+
+        // ===== ปุ่มลอย: ซ่อนตอนเลื่อนลง โผล่ตอนเลื่อนขึ้น + ระลอกคลื่นตอนแตะปุ่ม =====
+        (function interactionPolish() {
+            const fab = document.getElementById('fabBar');
+            let lastY = window.scrollY, ticking = false;
+            window.addEventListener('scroll', () => {
+                if (ticking) return;
+                ticking = true;
+                requestAnimationFrame(() => {
+                    const y = window.scrollY, d = y - lastY;
+                    if (Math.abs(d) > 8) { fab.classList.toggle('fab-hidden', d > 0 && y > 140); lastY = y; }
+                    ticking = false;
+                });
+            }, { passive: true });
+            document.addEventListener('pointerdown', (e) => {
+                if (prefersReduced()) return;
+                const btn = e.target.closest('button');
+                if (!btn || btn.disabled || btn.classList.contains('no-ripple')) return;
+                const r = btn.getBoundingClientRect(), size = Math.max(r.width, r.height) * 1.6;
+                const dot = document.createElement('span');
+                dot.className = 'ripple-dot';
+                dot.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - r.left - size / 2}px;top:${e.clientY - r.top - size / 2}px`;
+                btn.classList.add('ripple');
+                btn.appendChild(dot);
+                setTimeout(() => dot.remove(), 700);
+            }, { passive: true });
+        })();
+
         // ===== แอนิเมชันการ์ดยุบตัว + เปลี่ยนเดือนเลื่อนตามทิศทาง =====
         let renderDelay = 0;
         const renderSoon = () => {
@@ -1836,6 +2099,23 @@
             };
             document.getElementById('incDescList').innerHTML = build('income');
             document.getElementById('expDescList').innerHTML = build('expense');
+            const recent = (type, prefix) => {
+                const box = document.getElementById(prefix + 'Recent');
+                if (!box) return;
+                const seen = new Set(), items = [];
+                [...allTransactions].filter(t => t.type === type && !t.autoGenerated).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).forEach(t => {
+                    const d = (t.description || '').trim();
+                    if (d && !seen.has(d.toLowerCase()) && items.length < 6) { seen.add(d.toLowerCase()); items.push(d); }
+                });
+                box.innerHTML = '';
+                items.forEach(d => {
+                    const b = document.createElement('button');
+                    b.type = 'button'; b.className = 'chip soft'; b.textContent = d;
+                    b.addEventListener('click', () => { useRecent(prefix, d); haptic(6); });
+                    box.appendChild(b);
+                });
+            };
+            recent('income', 'inc'); recent('expense', 'exp');
         }
 
         function prefillFromHistory(type, desc) {
@@ -1927,32 +2207,53 @@
                 </div>`).join('');
         }
 
-        window.toggleStatus = (id) => { const i = allTransactions.find(t=>t.id===id); if(i){ i.isCompleted = !i.isCompleted; i.timestamp = Date.now(); window.saveAndSync(i); } };
+        window.toggleStatus = (id) => { const i = allTransactions.find(t=>t.id===id); if(i){ i.isCompleted = !i.isCompleted; i.timestamp = Date.now(); if (i.isCompleted) celebrateArmed = Date.now(); window.saveAndSync(i); } };
         window.deleteItem = (id) => {
-            const item = allTransactions.find(t => t.id === id);
-            const recurring = item && item.type === 'expense' && billKind(item) !== 'normal';
+            const idx = allTransactions.findIndex(t => t.id === id);
+            if (idx < 0) return;
+            const item = allTransactions[idx];
+            const recurring = item.type === 'expense' && billKind(item) !== 'normal';
             let prevOfSeries = null;
             if (recurring) {
                 const sibs = allTransactions.filter(t => t.id !== id && t.type === 'expense' && seriesOf(t) === seriesOf(item)).sort(sortByMonthDate);
                 const last = sibs[sibs.length - 1];
                 if (last && last.monthYear < item.monthYear) prevOfSeries = last;
             }
-            const msg = prevOfSeries ? 'ลบบิลนี้ และหยุดสร้างบิลเดือนถัดไปอัตโนมัติ?' : 'ลบรายการนี้?';
-            if(confirm(msg)) {
-                if (prevOfSeries) { prevOfSeries.stopAuto = true; prevOfSeries.timestamp = Date.now(); sendToSheets(prevOfSeries); }
-                allTransactions = allTransactions.filter(t => t.id !== id); localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
-                const row = document.querySelector(`#transactionsList [data-id="${String(id).replace(/"/g, '')}"]`);
-                if (collapseOut(row)) setTimeout(renderDashboard, 340); else renderDashboard();
-                sendToSheets({action: 'delete', id: id});
-            }
+            const prevBefore = prevOfSeries ? { ...prevOfSeries } : null;
+            if (prevOfSeries) { prevOfSeries.stopAuto = true; prevOfSeries.timestamp = Date.now(); sendToSheets(prevOfSeries); }
+            allTransactions = allTransactions.filter(t => t.id !== id); localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+            const row = document.querySelector(`#transactionsList [data-id="${String(id).replace(/"/g, '')}"]`);
+            if (collapseOut(row)) setTimeout(renderDashboard, 340); else renderDashboard();
+            sendToSheets({action: 'delete', id: id});
+            // ลบทันทีแต่เลิกทำได้ 6 วินาที (ไม่ต้องกดยืนยันก่อนลบ)
+            const msg = prevOfSeries ? 'ลบบิลนี้แล้ว และหยุดสร้างบิลเดือนถัดไปอัตโนมัติ' : 'ลบรายการแล้ว';
+            window.showToast(msg, 'success', { duration: 6000, action: { label: 'เลิกทำ', fn: () => {
+                if (!allTransactions.some(t => t.id === item.id)) allTransactions.splice(Math.min(idx, allTransactions.length), 0, item);
+                if (prevOfSeries && prevBefore) {
+                    const live = allTransactions.find(t => t.id === prevBefore.id);
+                    if (live) { if (prevBefore.stopAuto) live.stopAuto = true; else delete live.stopAuto; live.timestamp = Date.now(); sendToSheets(live); }
+                }
+                localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
+                highlightId = item.id;
+                sendToSheets(item);
+                renderDashboard();
+            } } });
         };
 
-        window.showToast = (msg, type='success') => {
+        window.showToast = (msg, type='success', opts = {}) => {
             if (type === 'success' && navigator.vibrate) navigator.vibrate(12);
             const c = document.getElementById('toast-container'); const t = document.createElement('div');
             t.className = `flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium toast-enter toast-enter-active ${type==='success'?'bg-gray-800 text-white':'bg-red-500 text-white'}`;
-            t.innerHTML = `<i class="ph-bold ${type==='success'?'ph-check-circle text-green-400':'ph-warning-circle'} text-lg"></i> ${escapeHTML(msg)}`;
-            c.appendChild(t); setTimeout(()=>{ t.classList.add('toast-exit-active'); setTimeout(()=>t.remove(), 300); }, 2500);
+            t.innerHTML = `<i class="ph-bold ${type==='success'?'ph-check-circle text-green-400':'ph-warning-circle'} text-lg"></i> <span class="flex-1">${escapeHTML(msg)}</span>`;
+            const dismiss = () => { t.classList.add('toast-exit-active'); setTimeout(() => t.remove(), 300); };
+            if (opts.action) {
+                const b = document.createElement('button');
+                b.type = 'button'; b.className = 'toast-action'; b.textContent = opts.action.label;
+                b.addEventListener('click', () => { opts.action.fn(); dismiss(); });
+                t.appendChild(b);
+            }
+            c.appendChild(t);
+            setTimeout(dismiss, opts.duration || 2500);
         };
 
         // ===== ดึงลงเพื่อซิงค์ (ตอนอยู่บนสุดของหน้า) =====

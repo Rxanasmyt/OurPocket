@@ -7,7 +7,8 @@
     "test:sheet": "node tests/gas/test-sheet.js && node tests/gas/test-formulas.js",
     "test:e2e": "node tests/gas/e2e.js",
     "test:ui": "node tests/gas/ui-regression.js",
-    "test:anim": "node tests/gas/animation.js"
+    "test:anim": "node tests/gas/animation.js",
+    "test:features": "node tests/gas/features.js"
   },
   "devDependencies": {
     "tailwindcss": "3.4.17",
