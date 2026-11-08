@@ -58,10 +58,14 @@ const swipe = async (p, sel, from, to) => { await touch(p, sel, 'touchstart', fr
   ok((await h()) < 2, 'collapses back');
   const tx = async (v) => { await p.evaluate((x) => window.setView(x), v); await p.waitForTimeout(150); return p.evaluate(() => document.getElementById('segThumb').style.transform); };
   ok(await tx('income') === 'translateX(100%)' && await tx('expense') === 'translateX(200%)' && await tx('all') === 'translateX(0%)', 'segmented thumb slides under the chosen tab');
+  // เบราว์เซอร์ที่รองรับใช้ View Transitions (ตั้ง data-vt-dir) ที่ไม่รองรับใช้คลาส slide-*
+  const dirOf = () => p.evaluate(() => document.documentElement.dataset.vtDir || (document.getElementById('transactionsList').classList.contains('slide-next') ? 'next' : document.getElementById('transactionsList').classList.contains('slide-prev') ? 'prev' : ''));
   await p.evaluate(() => window.shiftMonth(1));
-  ok(await p.evaluate(() => document.getElementById('transactionsList').classList.contains('slide-next')), 'next month slides in from the right');
+  ok((await dirOf()) === 'next', 'next month slides in from the right');
+  await p.waitForTimeout(700);
   await p.evaluate(() => window.shiftMonth(-2));
-  ok(await p.evaluate(() => document.getElementById('transactionsList').classList.contains('slide-prev')), 'previous month slides in from the left');
+  ok((await dirOf()) === 'prev', 'previous month slides in from the left');
+  await p.waitForTimeout(700);
   await p.evaluate(() => window.shiftMonth(1)); await p.waitForTimeout(700);
 
   console.log('== delete / pay animations ==');

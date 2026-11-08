@@ -22,7 +22,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.15.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.16.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -253,7 +253,6 @@
         /* ===== กราฟิกแดชบอร์ด: วงแหวนสัดส่วน / โดนัท / เส้นเวลาบิล ===== */
         .ring-track { stroke: #bbf7d0; }
         .ring-bar { transition: stroke-dashoffset 1s var(--ease-emph), stroke 0.4s ease; }
-        .donut-seg { animation: donutIn 1s var(--ease-emph) backwards; }
         @keyframes donutIn { from { stroke-dasharray: 0 400; } }
         .trend-col { cursor: pointer; transition: opacity 0.25s ease, transform 0.4s var(--spring); }
         .trend-col:active { transform: scale(0.94); }
@@ -297,6 +296,46 @@
         /* การ์ดยอดเงินค่อยๆ ย่อและจางเมื่อเลื่อนผ่าน (scroll-driven animations) */
         @keyframes heroExit { to { transform: scale(0.94) translateY(-16px); opacity: 0.4; } }
         @supports (animation-timeline: view()) { .hero-aurora { animation: heroExit linear both; animation-timeline: view(); animation-range: exit 0% exit 75%; } }
+        /* ===== v4: View Transitions / ตัวเลขหมุนเหมือนมิเตอร์ / กรอบแสงหมุน / โดนัทแตะได้ ===== */
+        @supports (view-transition-name: none) {
+            #transactionsList { view-transition-name: txlist; }
+            #listSummary { view-transition-name: txsum; }
+            #remindersSection { view-transition-name: payplan; }
+            ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+            ::view-transition-group(txlist), ::view-transition-group(txsum), ::view-transition-group(payplan) { animation-duration: 0.42s; animation-timing-function: var(--ease-emph); }
+            html[data-vt-dir="next"]::view-transition-old(txlist) { animation: vtOutLeft 0.26s var(--ease-exit) both; }
+            html[data-vt-dir="next"]::view-transition-new(txlist) { animation: vtInRight 0.46s var(--ease-emph) both; }
+            html[data-vt-dir="prev"]::view-transition-old(txlist) { animation: vtOutRight 0.26s var(--ease-exit) both; }
+            html[data-vt-dir="prev"]::view-transition-new(txlist) { animation: vtInLeft 0.46s var(--ease-emph) both; }
+            html[data-vt-dir="fade"]::view-transition-old(txlist) { animation: vtFadeOut 0.2s ease-in both; }
+            html[data-vt-dir="fade"]::view-transition-new(txlist) { animation: vtFadeIn 0.36s var(--ease-emph) both; }
+        }
+        @keyframes vtOutLeft { to { opacity: 0; transform: translateX(-36px); } }
+        @keyframes vtInRight { from { opacity: 0; transform: translateX(36px); } }
+        @keyframes vtOutRight { to { opacity: 0; transform: translateX(36px); } }
+        @keyframes vtInLeft { from { opacity: 0; transform: translateX(-36px); } }
+        @keyframes vtFadeOut { to { opacity: 0; } }
+        @keyframes vtFadeIn { from { opacity: 0; transform: translateY(8px); } }
+        /* ตัวเลขเงินเปลี่ยนค่า: แต่ละหลักหมุนขึ้นเหมือนมิเตอร์ (ข้อความจริงยังอยู่ครบสำหรับอ่านและก๊อปปี้) */
+        .dg { display: inline-block; position: relative; overflow: hidden; vertical-align: bottom; }
+        .dg > i { display: inline-block; font-style: normal; animation: dgIn 0.65s var(--ease-emph) backwards; animation-delay: inherit; }
+        .dg::before { content: attr(data-prev); position: absolute; left: 0; right: 0; top: 0; text-align: center; animation: dgOut 0.65s var(--ease-emph) forwards; animation-delay: inherit; }
+        @keyframes dgIn { from { transform: translateY(105%); opacity: 0; } }
+        @keyframes dgOut { to { transform: translateY(-105%); opacity: 0; } }
+        /* กรอบแสงหมุนรอบการ์ดยอดเงิน (@property ทำให้หมุนองศาได้) */
+        @property --ang { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+        .glow-ring { position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none; z-index: 15;
+            background: conic-gradient(from var(--ang), transparent 0 60%, rgba(255, 255, 255, 0.95) 78%, transparent 92%);
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation: ringSpin 7s linear infinite; }
+        @keyframes ringSpin { to { --ang: 360deg; } }
+        @keyframes overduePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } 50% { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0.14); } }
+        .overdue-pulse { animation: overduePulse 2.6s ease-in-out infinite; }
+        /* โดนัท: แตะส่วนไหน ส่วนนั้นเด่นขึ้นและบอกรายละเอียดตรงกลาง */
+        .donut-seg { cursor: pointer; transition: stroke-width 0.35s var(--spring), opacity 0.25s ease; }
+        .donut-seg.donut-sel { stroke-width: 15; }
+        .donut-dim .donut-seg:not(.donut-sel) { opacity: 0.32; }
+        /* เหรียญกระจายจากปุ่มตอนกดจ่ายแต่ละบิล */
+        .mini-piece { position: absolute; width: 7px; height: 7px; border-radius: 50%; opacity: 0; animation: confettiFly 0.85s cubic-bezier(0.15, 0.8, 0.3, 1) forwards; }
         .submit-sticky { box-shadow: 0 -20px 16px 4px #fff !important; }
         /* --- ปรับสำหรับมือถือ --- */
         html { -webkit-text-size-adjust: 100%; }
@@ -350,7 +389,7 @@
 
         <!-- Dashboard Cards -->
         <div class="grid grid-cols-2 gap-4">
-            <div class="hero-aurora col-span-2 glass-card rounded-3xl p-6 text-center bg-gradient-to-br from-primary to-[#c9184a] text-white shadow-lg shadow-primary/30 relative overflow-hidden reveal">
+            <div class="hero-aurora col-span-2 glass-card rounded-3xl p-6 text-center bg-gradient-to-br from-primary to-[#c9184a] text-white shadow-lg shadow-primary/30 relative overflow-hidden reveal"><span class="glow-ring" aria-hidden="true"></span>
                 <div class="absolute -right-6 -top-6 text-white/10 text-8xl floating-icon"><i class="ph-fill ph-coins"></i></div>
                 <button type="button" id="privacyBtn" onclick="window.togglePrivacy()" aria-label="ซ่อน/แสดงตัวเลข" title="ซ่อน/แสดงตัวเลข" class="absolute left-3 top-3 z-20 w-9 h-9 rounded-full bg-white/15 text-white flex items-center justify-center"><i class="ph-bold ph-eye text-lg"></i></button>
                 <div class="flex justify-center items-center gap-2 mb-1 relative z-10">
@@ -915,7 +954,8 @@
             document.getElementById('monthSelector').addEventListener('change', (e) => {
                 if (!/^\d{4}-\d{2}$/.test(e.target.value)) { e.target.value = currentMonthYear; return; } // ล้างช่องเดือนแล้วให้กลับเป็นเดือนเดิม
                 const dir = e.target.value > currentMonthYear ? 1 : -1;
-                currentMonthYear = e.target.value; animateNext = true; renderDashboard(); playSlide(dir);
+                const v = e.target.value;
+                changeView(() => { currentMonthYear = v; }, dir);
             });
             document.getElementById('expDesc').addEventListener('input', (e) => autoFillFromDescription(e.target.value));
             document.getElementById('expDesc').addEventListener('change', (e) => prefillFromHistory('expense', e.target.value));
@@ -1079,14 +1119,14 @@
         };
         function enableSwipeClose(modal) {
             const head = modal.firstElementChild;
-            let y0 = null, dy = 0;
+            let y0 = null, dy = 0, lastY = 0, lastT = 0, vy = 0;
             head.style.touchAction = 'none';
-            head.addEventListener('touchstart', (e) => { y0 = e.touches[0].clientY; dy = 0; modal.style.transition = 'none'; }, { passive: true });
-            head.addEventListener('touchmove', (e) => { if (y0 === null) return; dy = Math.max(0, e.touches[0].clientY - y0); modal.style.transform = `translateY(${dy}px)`; }, { passive: true });
+            head.addEventListener('touchstart', (e) => { y0 = e.touches[0].clientY; dy = 0; vy = 0; lastY = y0; lastT = performance.now(); modal.style.transition = 'none'; }, { passive: true });
+            head.addEventListener('touchmove', (e) => { if (y0 === null) return; const now = performance.now(), cy = e.touches[0].clientY; vy = (cy - lastY) / Math.max(16, now - lastT); lastY = cy; lastT = now; dy = Math.max(0, cy - y0); modal.style.transform = `translateY(${dy}px)`; }, { passive: true });
             const end = () => {
                 if (y0 === null) return;
                 y0 = null;
-                if (dy > 110) {
+                if (dy > 110 || (vy > 0.8 && dy > 40)) {   // ปัดไกลพอ หรือสะบัดลงเร็ว
                     if (prefersReduced()) { finishClose(); currentEditId = null; return; }
                     modal.style.transition = 'transform 0.22s cubic-bezier(0.4, 0, 1, 1)'; modal.style.transform = 'translateY(105%)';
                     setTimeout(() => { finishClose(); currentEditId = null; }, 210);
@@ -1840,12 +1880,12 @@
                 let acc = 0;
                 const segs = entries.map(([, val], idx) => {
                     const len = Math.max(0, (val / total) * C - (entries.length > 1 ? 2 : 0));
-                    const seg = `<circle class="${anim ? 'donut-seg' : ''}" cx="42" cy="42" r="34" fill="none" stroke="${CATEGORY_COLORS[idx % CATEGORY_COLORS.length]}" stroke-width="11" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}" style="animation-delay:${idx * 0.08}s"/>`;
+                    const seg = `<circle class="donut-seg" data-name="${escapeHTML(entries[idx][0])}" data-val="${val}" cx="42" cy="42" r="34" fill="none" stroke="${CATEGORY_COLORS[idx % CATEGORY_COLORS.length]}" stroke-width="11" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}" style="${anim ? `animation: donutIn 1s var(--ease-emph) ${idx * 0.08}s backwards;` : ''}"/>`;
                     acc += (val / total) * C;
                     return seg;
                 }).join('');
                 const [topName, topVal] = entries[0];
-                donut.innerHTML = `<div class="relative w-[96px] h-[96px] shrink-0"><svg viewBox="0 0 84 84" class="w-full h-full -rotate-90" aria-hidden="true"><circle cx="42" cy="42" r="34" fill="none" stroke="#f3f4f6" stroke-width="11"/>${segs}</svg><div class="absolute inset-0 flex flex-col items-center justify-center"><span class="text-[9px] text-gray-400">รวม</span><span class="money text-xs font-bold text-gray-700">${total >= 100000 ? Math.round(total / 1000) + 'k' : Math.round(total).toLocaleString('en-US')}</span></div></div>
+                donut.innerHTML = `<div class="relative w-[96px] h-[96px] shrink-0"><svg viewBox="0 0 84 84" class="w-full h-full -rotate-90" aria-hidden="true"><circle cx="42" cy="42" r="34" fill="none" stroke="#f3f4f6" stroke-width="11"/>${segs}</svg><div class="absolute inset-0 flex flex-col items-center justify-center px-2 text-center pointer-events-none"><span id="donutTop" class="text-[9px] text-gray-400 leading-tight">รวม</span><span id="donutVal" class="money text-xs font-bold text-gray-700">${total >= 100000 ? Math.round(total / 1000) + 'k' : Math.round(total).toLocaleString('en-US')}</span></div></div>
                     <div class="min-w-0 text-xs text-gray-500"><p>ใช้มากที่สุด</p><p class="text-sm font-bold text-gray-800 break-words">${escapeHTML(topName)}</p><p>${Math.round(topVal / total * 100)}% ของรายจ่าย</p></div>`;
             }
         }
@@ -1855,21 +1895,27 @@
             const first = el.dataset.v === undefined;
             const from = Number(el.dataset.v) || 0;
             el.dataset.v = to;
+            const text = formatMoney(to);
+            const old = el.dataset.txt !== undefined ? el.dataset.txt : el.textContent;
+            el.dataset.txt = text;
             if (!first && from !== to && !prefersReduced()) { el.classList.remove('value-flash'); void el.offsetWidth; el.classList.add('value-flash'); }
-            if (el._raf) cancelAnimationFrame(el._raf);
-            const fit = () => { // ตัวเลขยาวมากให้ย่อขนาดตัวอักษร ไม่ล้นการ์ด
-                const n = el.textContent.length;
-                el.style.fontSize = el.id === 'totalBalance' ? (n > 15 ? '1.75rem' : '') : (n > 13 ? '1rem' : '');
-            };
-            if (from === to || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = formatMoney(to); fit(); return; }
-            const t0 = performance.now(), dur = 700;
-            const step = (now) => {
-                const k = Math.min(1, (now - t0) / dur);
-                const eased = 1 - Math.pow(1 - k, 3);
-                el.textContent = formatMoney(from + (to - from) * eased); fit();
-                if (k < 1) el._raf = requestAnimationFrame(step);
-            };
-            el._raf = requestAnimationFrame(step);
+            if (text !== old && !prefersReduced()) {
+                // แต่ละหลักที่เปลี่ยนจะหมุนขึ้นจากหลักเดิม (ไล่จากขวาไปซ้าย)
+                const cs = [...text], os = [...old];
+                const parts = cs.map((ch, i) => {
+                    const oi = os.length - (cs.length - i);
+                    const och = oi >= 0 ? os[oi] : '';
+                    if (!/\d/.test(ch) || och === ch) return escapeHTML(ch);
+                    const rank = cs.length - 1 - i;
+                    return `<span class="dg" data-prev="${/\d/.test(och) ? och : ''}" style="animation-delay:${(rank * 0.045).toFixed(3)}s"><i>${ch}</i></span>`;
+                });
+                el.innerHTML = parts.join('');
+            } else if (text !== old) {
+                el.textContent = text;
+            }
+            // ตัวเลขยาวมากให้ย่อขนาดตัวอักษร ไม่ล้นการ์ด
+            const n = text.length;
+            el.style.fontSize = el.id === 'totalBalance' ? (n > 15 ? '1.75rem' : '') : (n > 13 ? '1rem' : '');
         }
 
         // ===== ธนาคาร: สีและสัญลักษณ์ =====
@@ -2088,7 +2134,7 @@
                         extra = `<p class="text-[11px] text-gray-500 mt-0.5">ยอดเต็ม ${formatMoney(t.fullAmount || 0)} · ขั้นต่ำ ${formatMoney(t.minAmount || 0)} · ค้างหลังจ่าย ${formatMoney(t.remainingAmount || 0)}</p>`;
                     }
                     return `
-                    <div data-pay-id="${t.id}" class="bg-white rounded-2xl p-3 flex items-center gap-3 shadow-sm border-l-4" style="border-left-color:${m.color}">
+                    <div data-pay-id="${t.id}" class="${d < 0 ? 'overdue-pulse ' : ''}bg-white rounded-2xl p-3 flex items-center gap-3 shadow-sm border-l-4" style="border-left-color:${m.color}">
                         <div class="relative shrink-0">
                             ${bankBadge(t.bank, 40)}
                             <span class="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-gray-800 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">${n}</span>
@@ -2123,6 +2169,8 @@
             if (billKind(t) === 'minpay') { window.editItem(id, true); window.showToast('ใส่จำนวนที่จ่ายจริง แล้วกดอัปเดตข้อมูล'); }
             else {
                 const card = document.querySelector(`[data-pay-id="${String(id).replace(/"/g, '')}"]`);
+                const payBtn = card && card.querySelector('button');
+                if (payBtn) { const r = payBtn.getBoundingClientRect(); miniBurst(r.left + r.width / 2, r.top + r.height / 2); }
                 if (collapseOut(card, 'paid')) renderDelay = 360;   // รอให้การ์ดยุบตัวเสร็จก่อนวาดหน้าใหม่
                 window.toggleStatus(id);
             }
@@ -2163,6 +2211,21 @@
             try { localStorage.setItem('privacy', on ? '1' : '0'); } catch (e) {}
             haptic(10);
         };
+        document.getElementById('catDonut').addEventListener('click', (e) => {
+            const seg = e.target.closest('.donut-seg');
+            const box = document.getElementById('catDonut');
+            const top = document.getElementById('donutTop'), val = document.getElementById('donutVal');
+            if (!top || !val) return;
+            const total = [...box.querySelectorAll('.donut-seg')].reduce((a, c) => a + Number(c.dataset.val), 0);
+            const already = seg && seg.classList.contains('donut-sel');
+            box.querySelectorAll('.donut-seg').forEach(c => c.classList.remove('donut-sel'));
+            box.classList.toggle('donut-dim', !!seg && !already);
+            if (!seg || already) { top.textContent = 'รวม'; val.textContent = total >= 100000 ? Math.round(total / 1000) + 'k' : Math.round(total).toLocaleString('en-US'); return; }
+            seg.classList.add('donut-sel');
+            top.textContent = seg.dataset.name;
+            val.textContent = Math.round(Number(seg.dataset.val) / total * 100) + '% · ' + Math.round(Number(seg.dataset.val)).toLocaleString('en-US');
+            haptic(6);
+        });
         window.spinLogo = () => {
             const el = document.getElementById('appLogo');
             if (prefersReduced()) return;
@@ -2239,6 +2302,7 @@
                     const cur = allTransactions.find(x => x.id === t.id);
                     if (cur) {
                         const wasPaid = cur.isCompleted;
+                        if (!wasPaid) { const r = card.getBoundingClientRect(); miniBurst(r.left + 70, r.top + r.height / 2); }
                         window.toggleStatus(t.id);
                         window.showToast(wasPaid ? 'เปลี่ยนเป็นยังไม่จ่าย' : 'จ่ายแล้ว ✓', 'success', { action: { label: 'เลิกทำ', fn: () => window.toggleStatus(t.id) }, duration: 5000 });
                     }
@@ -2324,6 +2388,23 @@
             draw('sparkInc', 'inc', '#10b981'); draw('sparkExp', 'exp', '#ef4444');
         }
 
+        // ===== เหรียญกระจายจากจุดที่กด (ตอนจ่ายบิล) =====
+        function miniBurst(x, y) {
+            if (prefersReduced()) return;
+            const box = document.createElement('div');
+            box.className = 'confetti-box';
+            const colors = ['#f59e0b', '#fbbf24', '#10b981', '#ff4d6d', '#3b82f6'];
+            for (let n = 0; n < 12; n++) {
+                const p = document.createElement('span');
+                p.className = 'mini-piece';
+                const ang = (Math.PI * 2 * n) / 12 + Math.random() * 0.5, dist = 36 + Math.random() * 46;
+                p.style.cssText = `left:${x}px;top:${y}px;background:${colors[n % colors.length]};--dx:${Math.cos(ang) * dist}px;--dy:${Math.sin(ang) * dist - 24}px;--rot:${Math.random() * 360}deg`;
+                box.appendChild(p);
+            }
+            document.body.appendChild(box);
+            setTimeout(() => box.remove(), 1100);
+        }
+
         // ===== ฉลองเมื่อจ่ายบิลครบทุกใบ =====
         let celebrateArmed = 0, lastUnpaidCount = null;
         function burstConfetti() {
@@ -2403,14 +2484,28 @@
             });
         }
 
+        // ===== เปลี่ยนเดือน/มุมมองด้วย View Transitions API (เบราว์เซอร์ที่ไม่รองรับใช้แอนิเมชันเดิม) =====
+        let vtToken = 0;
+        const vtSupported = () => typeof document.startViewTransition === 'function' && !prefersReduced();
+        function changeView(applyState, dir) {
+            if (!vtSupported()) { animateNext = true; applyState(); renderDashboard(); playSlide(dir); return; }
+            const root = document.documentElement;
+            root.dataset.vtDir = dir > 0 ? 'next' : dir < 0 ? 'prev' : 'fade';
+            applyState();            // อัปเดตสถานะทันที (ภาพเก่าถูกถ่ายไว้แล้ว)
+            animateNext = false;     // การเปลี่ยนภาพให้ View Transition ดูแล ไม่ต้องไล่เข้าทีละแถวซ้อน
+            const token = ++vtToken;
+            const vt = document.startViewTransition(() => { renderDashboard(); });
+            // ถ้ามีการเปลี่ยนซ้อนกัน อันเก่าจะถูกข้าม (reject) ต้องดักไว้ทุก promise และไม่ลบทิศทางของอันใหม่
+            vt.ready.catch(() => {}); vt.updateCallbackDone.catch(() => {});
+            vt.finished.catch(() => {}).finally(() => { if (token === vtToken && root.dataset.vtDir) delete root.dataset.vtDir; });
+        }
         window.shiftMonth = (delta) => {
-            const [y, m] = currentMonthYear.split('-').map(Number);
-            const d = new Date(y, m - 1 + delta, 1);
-            currentMonthYear = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            document.getElementById('monthSelector').value = currentMonthYear;
-            animateNext = true;
-            renderDashboard();
-            playSlide(delta);
+            changeView(() => {
+                const [y, m] = currentMonthYear.split('-').map(Number);
+                const d = new Date(y, m - 1 + delta, 1);
+                currentMonthYear = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                document.getElementById('monthSelector').value = currentMonthYear;
+            }, delta);
         };
 
         window.toggleStats = () => {
@@ -2475,7 +2570,7 @@
             }
         }
 
-        window.setView = (v) => { viewFilter = v; animateNext = true; renderDashboard(); };
+        window.setView = (v) => { changeView(() => { viewFilter = v; }, 0); };
 
         function renderBreakdowns(anim) {
             // ปุ่มกรอง รายรับ/รายจ่าย
