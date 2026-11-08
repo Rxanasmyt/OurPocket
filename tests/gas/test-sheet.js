@@ -15,7 +15,7 @@ let env = makeEnv({ sheets: ['Sheet1'] });
 let r = env.post(rec.income);
 ok(r.status === 'success', 'income saved: ' + JSON.stringify(r));
 const names = env.sheets.map((s) => s.name);
-ok(JSON.stringify(names) === JSON.stringify(['สรุป', 'ลำดับจ่าย', 'รายเดือน', 'รายการ', 'ตั้งค่า']), 'tab order: ' + names.join(' | '));
+ok(JSON.stringify(names) === JSON.stringify(['สรุป', 'ลำดับจ่าย', 'รายเดือน', 'ค้นหา', 'รายการ', 'ตั้งค่า']), 'tab order: ' + names.join(' | '));
 ok(env.props.get('setupErrors') === '', 'no setup errors: "' + env.props.get('setupErrors') + '"');
 const data = env.ss.getSheetByName('รายการ');
 const hdr = data.getRange(1, 1, 1, data.getLastColumn()).getValues()[0];

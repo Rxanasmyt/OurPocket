@@ -25,7 +25,8 @@ var SHEET_DASH = 'สรุป';
 var SHEET_PLAN = 'ลำดับจ่าย';
 var SHEET_MONTH = 'รายเดือน';
 var SHEET_SET = 'ตั้งค่า';
-var SETUP_VERSION = 'v7';
+var SHEET_FILTER = 'ค้นหา';
+var SETUP_VERSION = 'v8';
 // API_VERSION: เพิ่มทุกครั้งที่รูปแบบการคุยกับแอปเปลี่ยน (แอปจะไม่ส่งข้อมูลถ้าสคริปต์เก่ากว่าที่แอปต้องการ)
 var API_VERSION = 8;
 var SCRIPT_VERSION = 'Our Wallet script v' + API_VERSION;
@@ -145,7 +146,7 @@ function getDataSheet_(ss) {
   var sh = ss.getSheetByName(SHEET_DATA);
   if (!sh) {
     var first = ss.getSheets()[0];
-    var reserved = [SHEET_DASH, SHEET_PLAN, SHEET_MONTH, SHEET_SET];
+    var reserved = [SHEET_DASH, SHEET_PLAN, SHEET_MONTH, SHEET_FILTER, SHEET_SET];
     // ใช้แท็บเดิมที่มีข้อมูลอยู่แล้ว ถ้ายังไม่ใช่แท็บที่ระบบสร้าง
     if (first && reserved.indexOf(first.getName()) === -1) { first.setName(SHEET_DATA); sh = first; }
     else sh = ss.insertSheet(SHEET_DATA);
@@ -435,6 +436,7 @@ function ensureSetup_(ss) {
   step('dashboard', function () { buildDashboard_(ss); });
   step('plan', function () { buildPlan_(ss); });
   step('monthly', function () { buildMonthly_(ss); });
+  step('filter', function () { buildFilter_(ss); });
   step('order', function () { ensureSheetOrder_(ss); });
 
   props.setProperty('setupErrors', errors.join('\n'));
@@ -1069,8 +1071,103 @@ function buildMonthly_(ss) {
   protectWarn_(sh, 'คำนวณอัตโนมัติ แก้ได้เฉพาะช่องเดือน/มุมมอง', [sh.getRange('B2:C2'), sh.getRange('B3:C3')]);
 }
 
+// ------------------------------------------------------------
+//  แท็บ "ค้นหา": เลือกเงื่อนไขกรองเองได้ (เดือน/ประเภท/คน/ธนาคาร/หมวด/สถานะ/คำค้น)
+// ------------------------------------------------------------
+function buildFilter_(ss) {
+  var F = dataRanges_(ss);
+  var sh = resetSheet_(ss, SHEET_FILTER);
+  sh.setTabColor('#0ea5e9');
+  sh.setHiddenGridlines(true);
+  ensureSize_(sh, 340, 10);
+  sh.getRange(1, 1, 340, 10).setFontFamily('Sarabun').setVerticalAlignment('middle');
+  var widths = [100, 90, 110, 240, 90, 100, 150, 120, 120, 24];
+  for (var c = 0; c < widths.length; c++) sh.setColumnWidth(c + 1, widths[c]);
+
+  sh.getRange('A1:I1').merge().setValue('🔎  ค้นหา / กรองข้อมูลตามที่เลือก')
+    .setBackground(COLOR_PRIMARY).setFontColor('#ffffff').setFontSize(20).setFontWeight('bold');
+  sh.setRowHeight(1, 56);
+
+  var ALL = 'ทั้งหมด';
+  var cats = EXPENSE_CATEGORIES.concat(INCOME_CATEGORIES);
+  var controls = [
+    {row: 2, label: 'เดือน ▸', list: null},
+    {row: 3, label: 'ประเภท ▸', list: [ALL, 'รายรับ', 'รายจ่าย']},
+    {row: 4, label: 'คน ▸', list: [ALL, 'Anas', 'Phada']},
+    {row: 5, label: 'ธนาคาร ▸', list: [ALL].concat(BANK_ORDER)},
+    {row: 6, label: 'หมวดหมู่ ▸', list: [ALL].concat(cats)},
+    {row: 7, label: 'สถานะ ▸', list: [ALL, 'เสร็จสิ้น', 'รอดำเนินการ']},
+    {row: 8, label: 'คำค้น ▸', list: null}
+  ];
+  controls.forEach(function (ct) {
+    sh.getRange('A' + ct.row).setValue(ct.label).setFontWeight('bold').setHorizontalAlignment('right').setFontColor(COLOR_DARK);
+    var box = sh.getRange('B' + ct.row + ':C' + ct.row).merge().setBackground('#ffffff').setFontWeight('bold').setHorizontalAlignment('center')
+      .setBorder(true, true, true, true, false, false, COLOR_PRIMARY, SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    if (ct.list) box.setValue(ALL).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(ct.list, true).setAllowInvalid(false).build());
+    sh.setRowHeight(ct.row, 30);
+  });
+  sh.getRange('B2:C2').setNumberFormat('@').setValue(ALL)
+    .setDataValidation(SpreadsheetApp.newDataValidation().requireValueInRange(monthValidationRange_(ss), true).setAllowInvalid(true).build());
+  sh.getRange('B8:C8').setNumberFormat('@').setValue('');
+  sh.getRange('D2').setValue('เลือกเงื่อนไขได้หลายช่องพร้อมกัน ตารางด้านล่างเปลี่ยนตามทันที').setFontColor('#9ca3af').setFontSize(9);
+  sh.getRange('D3').setValue('ตั้งช่องใดเป็น "ทั้งหมด" = ไม่กรองช่องนั้น (เดือนพิมพ์ ทั้งหมด หรือเลือก yyyy-MM)').setFontColor('#9ca3af').setFontSize(9);
+  sh.getRange('D8').setValue('พิมพ์บางส่วนของชื่อรายการ เช่น ไฟ, ผ่อน').setFontColor('#9ca3af').setFontSize(9);
+
+  var kpis = [
+    {r: 'F4:G4', v: 'F5:G5', label: 'รายรับ', color: COLOR_INCOME, f: '=SUMIF($B$12:$B$340,"รายรับ",$H$12:$H$340)'},
+    {r: 'H4:I4', v: 'H5:I5', label: 'รายจ่าย', color: COLOR_EXPENSE, f: '=SUMIF($B$12:$B$340,"รายจ่าย",$H$12:$H$340)'},
+    {r: 'F6:G6', v: 'F7:G7', label: 'คงเหลือ', color: COLOR_DARK, f: '=F5-H5'},
+    {r: 'H6:I6', v: 'H7:I7', label: 'พบ', color: '#0ea5e9', f: '=(COUNTIF($B$12:$B$340,"รายรับ")+COUNTIF($B$12:$B$340,"รายจ่าย"))&" รายการ"'}
+  ];
+  kpis.forEach(function (k) {
+    sh.getRange(k.r).merge().setValue(k.label).setFontSize(10).setFontColor('#6b7280').setHorizontalAlignment('center').setBackground('#ffffff');
+    sh.getRange(k.v).merge().setFormula(k.f).setNumberFormat('฿#,##0.00').setFontSize(14).setFontWeight('bold').setFontColor(k.color).setHorizontalAlignment('center').setBackground('#ffffff');
+    sh.getRange(k.r.split(':')[0] + ':' + k.v.split(':')[1]).setBorder(true, true, true, true, false, false, '#fecdd3', SpreadsheetApp.BorderStyle.SOLID);
+  });
+
+  var headers = ['วันที่', 'ประเภท', 'หมวดหมู่', 'รายการ', 'คน', 'ธนาคาร', 'รูปแบบการจ่าย', 'จำนวนเงิน', 'สถานะ'];
+  tableHeader_(sh.getRange('A11:I11'), headers, COLOR_DARK);
+  sh.setRowHeight(11, 30);
+
+  var lastL = colLetter_(getDataSheet_(ss).getLastColumn());
+  var L = F.col;
+  var sel = [L('วันที่'), L('ประเภท'), L('หมวดหมู่'), L('รายการ'), L('คนทำรายการ'), L('ธนาคาร'), L('รูปแบบการจ่าย'), L('จำนวนเงิน'), L('สถานะ')].join(',');
+  var where = L('วันที่') + ' is not null'
+    + '"&IF(OR($B$2="' + ALL + '",$B$2=""),""," and ' + L('เดือน-ปี') + '=\'"&$B$2&"\'")'
+    + '&IF($B$3="' + ALL + '",""," and ' + L('ประเภท') + '=\'"&$B$3&"\'")'
+    + '&IF($B$4="' + ALL + '",""," and ' + L('คนทำรายการ') + '=\'"&$B$4&"\'")'
+    + '&IF($B$5="' + ALL + '",""," and ' + L('ธนาคาร') + '=\'"&$B$5&"\'")'
+    + '&IF($B$6="' + ALL + '",""," and ' + L('หมวดหมู่') + '=\'"&$B$6&"\'")'
+    + '&IF($B$7="' + ALL + '",""," and ' + L('สถานะ') + '=\'"&$B$7&"\'")'
+    + '&IF($B$8="",""," and lower(' + L('รายการ') + ') contains \'"&LOWER(SUBSTITUTE($B$8,"\'",""))&"\'")';
+  sh.getRange('A12').setFormula(
+    '=IFERROR(QUERY(\'' + SHEET_DATA + '\'!$A$2:$' + lastL + ',"select ' + sel + ' where ' + where + '&" order by ' + L('วันที่') + ' desc",0),"ไม่พบรายการตามเงื่อนไขที่เลือก")');
+  sh.getRange('A12:C340').setHorizontalAlignment('center');
+  sh.getRange('E12:G340').setHorizontalAlignment('center');
+  sh.getRange('I12:I340').setHorizontalAlignment('center');
+  sh.getRange('H12:H340').setNumberFormat('#,##0.00').setHorizontalAlignment('right').setFontWeight('bold');
+
+  var all = sh.getRange('A12:I340');
+  var typeAndAmt = [sh.getRange('B12:B340'), sh.getRange('H12:H340')];
+  var rules = [
+    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$B12="รายรับ"').setFontColor('#047857').setRanges(typeAndAmt).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$B12="รายจ่าย"').setFontColor('#b91c1c').setRanges(typeAndAmt).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$B12="รายรับ"').setBackground('#ecfdf5').setRanges([all]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$B12="รายจ่าย"').setBackground('#fff1f2').setRanges([all]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$I12="รอดำเนินการ"').setFontColor('#b45309').setBold(true).setRanges([sh.getRange('I12:I340')]).build()
+  ];
+  for (var k = 0; k < BANK_ORDER.length; k++) {
+    var bank = BANK_ORDER[k];
+    rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(bank)
+      .setBackground(BANK_COLORS[bank][0]).setFontColor(BANK_COLORS[bank][1]).setBold(true).setRanges([sh.getRange('F12:F340')]).build());
+  }
+  sh.setConditionalFormatRules(rules);
+  sh.setFrozenRows(11);
+  protectWarn_(sh, 'คำนวณอัตโนมัติ แก้ได้เฉพาะช่องเงื่อนไขด้านบน', [sh.getRange('B2:C2'), sh.getRange('B3:C3'), sh.getRange('B4:C4'), sh.getRange('B5:C5'), sh.getRange('B6:C6'), sh.getRange('B7:C7'), sh.getRange('B8:C8')]);
+}
+
 function ensureSheetOrder_(ss) {
-  var order = [SHEET_DASH, SHEET_PLAN, SHEET_MONTH, SHEET_DATA, SHEET_SET];
+  var order = [SHEET_DASH, SHEET_PLAN, SHEET_MONTH, SHEET_FILTER, SHEET_DATA, SHEET_SET];
   for (var i = 0; i < order.length; i++) {
     var sh = ss.getSheetByName(order[i]);
     if (sh) { ss.setActiveSheet(sh); ss.moveActiveSheet(i + 1); }

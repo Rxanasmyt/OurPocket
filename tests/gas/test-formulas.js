@@ -131,7 +131,16 @@ ok(fx(dash, 29, 3).includes('AVERAGEIF($B$11:$B$22') && fx(dash, 31, 3).includes
 const planF = env.ss.getSheetByName('ลำดับจ่าย');
 ok(fx(planF, 26, 11).includes('SPARKLINE(I26') && fx(planF, 105, 11).includes('MAX($I$26:$I$105)'), 'plan rows get an amount bar');
 const bal = (s) => (s.match(/\(/g) || []).length === (s.match(/\)/g) || []).length && (s.match(/"/g) || []).length % 2 === 0;
-const allBalanced = [dash, planF, env.ss.getSheetByName('รายเดือน')].every((sh) => [...sh.formulas.values()].every(bal));
+console.log('== Filter tab ==');
+const fsh = env.ss.getSheetByName('ค้นหา');
+const fq = fsh.formulas.get('12,1') || '';
+ok(fq.startsWith('=IFERROR(QUERY(') && fq.includes('select B,A,D,E,F,G,O,J,K'), 'filter QUERY selects the right columns');
+['$B$2', '$B$3', '$B$4', '$B$5', '$B$6', '$B$7', '$B$8'].forEach((c) => ok(fq.includes(c), 'filter formula uses control ' + c));
+ok(fq.includes('contains') && fq.includes('order by B desc'), 'filter has keyword search + newest first');
+ok((fq.match(/\(/g) || []).length === (fq.match(/\)/g) || []).length, 'filter parentheses balanced');
+ok((fq.match(/"/g) || []).length % 2 === 0, 'filter quotes balanced');
+ok(fsh.formulas.get('5,6').includes('SUMIF(') && fsh.formulas.get('5,8').includes('SUMIF('), 'filter totals formulas present');
+const allBalanced = [dash, planF, env.ss.getSheetByName('รายเดือน'), fsh].every((sh) => [...sh.formulas.values()].every(bal));
 ok(allBalanced, 'every formula has balanced parentheses and quotes');
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
