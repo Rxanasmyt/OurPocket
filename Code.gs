@@ -1,88 +1,442 @@
+// ============================================================
+//  Our Wallet - Google Apps Script backend
+//  แท็บที่ระบบสร้างให้:
+//    "สรุป"     แดชบอร์ด + กราฟ (คำนวณจากสูตร อัปเดตเองอัตโนมัติ)
+//    "รายการ"   ตารางข้อมูลรายรับ-รายจ่าย (แอปอ่าน/เขียนที่แท็บนี้)
+//    "ตั้งค่า"   งบประมาณรายเดือน
+//  วิธีสร้างแดชบอร์ดใหม่: เมนู Our Wallet > จัดรูปแบบและสร้างแดชบอร์ดใหม่
+// ============================================================
+
+var SHEET_DATA = 'รายการ';
+var SHEET_DASH = 'สรุป';
+var SHEET_SET = 'ตั้งค่า';
+var SETUP_VERSION = 'v2';
+var HEADERS = ["ประเภท", "วันที่", "เดือน-ปี", "หมวดหมู่", "รายการ", "คนทำรายการ", "ธนาคาร", "งวดที่", "รวมงวด", "จำนวนเงิน", "สถานะ", "บันทึกเมื่อ", "ID", "RAW_JSON"];
+var COL_ID = 12;   // index (0-based) ของคอลัมน์ ID
+var COL_JSON = 13; // index (0-based) ของคอลัมน์ RAW_JSON
+var EXPENSE_CATEGORIES = ['อาหาร', 'เดินทาง', 'ช้อปปิ้ง', 'ที่พัก', 'สุขภาพ', 'หนี้สิน', 'อื่นๆ'];
+var PEOPLE = ['กองกลาง', 'ฉัน', 'แฟน'];
+
+var COLOR_PRIMARY = '#ff4d6d';
+var COLOR_DARK = '#c9184a';
+var COLOR_SOFT = '#fff0f3';
+var COLOR_INCOME = '#10b981';
+var COLOR_EXPENSE = '#ef4444';
+
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ------------------------------------------------------------
+//  Web app endpoints
+// ------------------------------------------------------------
 function doGet(e) {
   if (e && e.parameter && e.parameter.action === 'sync') {
-    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    if (!spreadsheet) return ContentService.createTextOutput(JSON.stringify({status: "error"})).setMimeType(ContentService.MimeType.JSON);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return json_({status: "error"});
+    ensureSetup_(ss);
 
-    var sheet = spreadsheet.getActiveSheet();
+    var sheet = getDataSheet_(ss);
     var values = sheet.getDataRange().getValues();
-    var jsonArray = [];
-
-    for(var i = 1; i < values.length; i++) {
-        var lastColData = values[i][values[i].length - 1];
-        if(lastColData && typeof lastColData === 'string' && lastColData.indexOf('{') === 0) {
-            try { jsonArray.push(JSON.parse(lastColData)); } catch(err) {}
-        }
+    var data = [];
+    for (var i = 1; i < values.length; i++) {
+      var raw = values[i][COL_JSON];
+      if (raw && typeof raw === 'string' && raw.indexOf('{') === 0) {
+        try { data.push(JSON.parse(raw)); } catch (err) {}
+      }
     }
-    return ContentService.createTextOutput(JSON.stringify({status: "success", data: jsonArray})).setMimeType(ContentService.MimeType.JSON);
+    return json_({status: "success", data: data, budgets: readBudgets_(ss)});
   }
   return ContentService.createTextOutput("✅ Our Wallet: Web App is running successfully!").setMimeType(ContentService.MimeType.TEXT);
 }
 
 function doPost(e) {
+  var lock = LockService.getScriptLock();
   try {
-    if (!e || !e.postData) return ContentService.createTextOutput(JSON.stringify({"status": "error"})).setMimeType(ContentService.MimeType.JSON);
+    if (!e || !e.postData) return json_({status: "error"});
+    lock.waitLock(20000);
 
     var data = JSON.parse(e.postData.contents);
-    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    if (!spreadsheet) return ContentService.createTextOutput(JSON.stringify({"status": "error"})).setMimeType(ContentService.MimeType.JSON);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return json_({status: "error"});
+    ensureSetup_(ss);
+    var sheet = getDataSheet_(ss);
 
-    var sheet = spreadsheet.getActiveSheet();
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn() || 1).getValues()[0];
-
-    // สร้างหัวตารางถ้ายังไม่มี
-    if (sheet.getLastRow() === 0 || headers.length < 5) {
-      headers = ["ประเภท", "วันที่", "เดือน-ปี", "หมวดหมู่", "รายการ", "คนทำรายการ", "ธนาคาร", "งวดที่", "รวมงวด", "จำนวนเงิน", "สถานะ", "บันทึกเมื่อ", "ID", "RAW_JSON"];
-      sheet.appendRow(headers);
-      sheet.getRange("A1:N1").setFontWeight("bold").setBackground("#d9ead3");
+    // ตั้งงบประมาณรายเดือน
+    if (data.action === 'budget' && data.month) {
+      saveBudget_(ss, data.month, Number(data.amount) || 0);
+      return json_({status: "success", message: "budget saved"});
     }
 
-    var idColIdx = headers.indexOf("ID");
-    if (idColIdx === -1) idColIdx = 11; // Fallback
-
+    // ลบรายการ
     if (data.action === 'delete' && data.id) {
-      var values = sheet.getDataRange().getValues();
-      for (var i = 1; i < values.length; i++) {
-        if (values[i][idColIdx] == data.id) {
-          sheet.deleteRow(i + 1);
-          return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "deleted"})).setMimeType(ContentService.MimeType.JSON);
-        }
+      var rowToDelete = findRowById_(sheet, data.id);
+      if (rowToDelete > -1) {
+        sheet.deleteRow(rowToDelete);
+        return json_({status: "success", message: "deleted"});
       }
-      return ContentService.createTextOutput(JSON.stringify({"status": "error"})).setMimeType(ContentService.MimeType.JSON);
+      return json_({status: "error", message: "not found"});
     }
 
+    // เพิ่ม / แก้ไขรายการ
     var type = data.type === 'income' ? 'รายรับ' : 'รายจ่าย';
     var amount = data.type === 'income' ? data.netAmount : data.amount;
     var status = data.type === 'income' ? '-' : (data.isCompleted ? 'เสร็จสิ้น' : 'รอดำเนินการ');
-    var dateStr = Utilities.formatDate(new Date(), "Asia/Bangkok", "dd/MM/yyyy HH:mm:ss");
+    var savedAt = Utilities.formatDate(new Date(), "Asia/Bangkok", "dd/MM/yyyy HH:mm:ss");
 
-    var rowData = [
-      type || '-', data.date || '-', data.monthYear || '-', data.category || '-', data.description || '-',
+    var row = [
+      type, data.date || '-', data.monthYear || '-', data.category || '-', data.description || '-',
       data.who || '-', data.bank || '-', data.currentInstallment || '-', data.totalInstallments || '-',
-      amount || 0, status, dateStr, data.id || '-', JSON.stringify(data)
+      Number(amount) || 0, status, savedAt, data.id || '-', JSON.stringify(data)
     ];
 
-    var values = sheet.getDataRange().getValues();
-    var rowIndex = -1;
-    for(var i = 1; i < values.length; i++) {
-       if(values[i][idColIdx] == data.id) { rowIndex = i + 1; break; }
-    }
-
-    // เติมข้อมูลให้ครบตามจำนวน Column ของ Header
-    var finalRowData = [];
-    for(var c = 0; c < headers.length; c++) {
-      if(c < rowData.length) finalRowData.push(rowData[c]);
-      else finalRowData.push(""); // เติมว่างถ้ามีคอลัมน์เกิน
-    }
-    finalRowData[headers.indexOf("RAW_JSON")] = JSON.stringify(data);
-
+    var rowIndex = findRowById_(sheet, data.id);
     if (rowIndex > -1) {
-       sheet.getRange(rowIndex, 1, 1, finalRowData.length).setValues([finalRowData]);
+      sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
     } else {
-       sheet.appendRow(finalRowData);
+      var target = Math.max(sheet.getLastRow() + 1, 2);
+      if (target > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), 500);
+      sheet.getRange(target, 1, 1, row.length).setValues([row]);
     }
-
-    return ContentService.createTextOutput(JSON.stringify({"status": "success"})).setMimeType(ContentService.MimeType.JSON);
+    return json_({status: "success"});
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": error.toString()})).setMimeType(ContentService.MimeType.JSON);
+    return json_({status: "error", message: error.toString()});
+  } finally {
+    try { lock.releaseLock(); } catch (x) {}
   }
+}
+
+function findRowById_(sheet, id) {
+  if (!id) return -1;
+  var last = sheet.getLastRow();
+  if (last < 2) return -1;
+  var ids = sheet.getRange(2, COL_ID + 1, last - 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(id)) return i + 2;
+  }
+  return -1;
+}
+
+// ------------------------------------------------------------
+//  งบประมาณ
+// ------------------------------------------------------------
+function readBudgets_(ss) {
+  var sh = ss.getSheetByName(SHEET_SET);
+  var out = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues();
+  for (var i = 0; i < vals.length; i++) {
+    if (vals[i][0] !== '' && Number(vals[i][1]) > 0) out[String(vals[i][0])] = Number(vals[i][1]);
+  }
+  return out;
+}
+
+function saveBudget_(ss, month, amount) {
+  var sh = ensureSettingsSheet_(ss);
+  var last = sh.getLastRow();
+  var row = -1;
+  if (last >= 2) {
+    var months = sh.getRange(2, 1, last - 1, 1).getValues();
+    for (var i = 0; i < months.length; i++) {
+      if (String(months[i][0]) === String(month)) { row = i + 2; break; }
+    }
+  }
+  if (row === -1) row = Math.max(last + 1, 2);
+  sh.getRange(row, 1, 1, 2).setValues([[month, amount]]);
+}
+
+// ------------------------------------------------------------
+//  ตั้งค่าครั้งแรก (ทำอัตโนมัติ 1 ครั้ง) / รันใหม่เองได้จากเมนู
+// ------------------------------------------------------------
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('💖 Our Wallet')
+    .addItem('จัดรูปแบบและสร้างแดชบอร์ดใหม่', 'setupAll')
+    .addToUi();
+}
+
+function setupAll() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  PropertiesService.getScriptProperties().deleteProperty('setup');
+  ensureSetup_(ss);
+}
+
+function ensureSetup_(ss) {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('setup') === SETUP_VERSION) return;
+  var dataSheet = getDataSheet_(ss);
+  formatDataSheet_(dataSheet);
+  ensureSettingsSheet_(ss);
+  buildDashboard_(ss);
+  props.setProperty('setup', SETUP_VERSION);
+}
+
+function getDataSheet_(ss) {
+  var sh = ss.getSheetByName(SHEET_DATA);
+  if (!sh) {
+    var first = ss.getSheets()[0];
+    // ใช้แท็บเดิมที่มีข้อมูลอยู่แล้ว ถ้ายังไม่ใช่แท็บสรุป/ตั้งค่า
+    if (first && first.getName() !== SHEET_DASH && first.getName() !== SHEET_SET) {
+      first.setName(SHEET_DATA);
+      sh = first;
+    } else {
+      sh = ss.insertSheet(SHEET_DATA);
+    }
+  }
+  if (sh.getLastRow() === 0) {
+    sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+  }
+  return sh;
+}
+
+function ensureSettingsSheet_(ss) {
+  var sh = ss.getSheetByName(SHEET_SET);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_SET);
+    sh.getRange(1, 1, 1, 2).setValues([["เดือน (yyyy-MM)", "งบประมาณ (บาท)"]]);
+    sh.getRange(1, 1, 1, 2).setFontWeight('bold').setBackground(COLOR_PRIMARY).setFontColor('#ffffff').setHorizontalAlignment('center');
+    sh.getRange(2, 1, 500, 1).setNumberFormat('@');
+    sh.getRange(2, 2, 500, 1).setNumberFormat('#,##0');
+    sh.setColumnWidth(1, 150);
+    sh.setColumnWidth(2, 150);
+    sh.setFrozenRows(1);
+    sh.setTabColor(COLOR_DARK);
+  }
+  return sh;
+}
+
+// ------------------------------------------------------------
+//  จัดรูปแบบตารางข้อมูล
+// ------------------------------------------------------------
+function formatDataSheet_(sh) {
+  var cols = HEADERS.length;
+  var minRows = 2000;
+  if (sh.getMaxRows() < minRows) sh.insertRowsAfter(sh.getMaxRows(), minRows - sh.getMaxRows());
+  var n = sh.getMaxRows();
+
+  sh.getRange(1, 1, 1, cols).setValues([HEADERS]);
+  sh.setTabColor(COLOR_PRIMARY);
+
+  var all = sh.getRange(1, 1, n, cols);
+  all.setFontFamily('Sarabun').setFontSize(10).setVerticalAlignment('middle');
+
+  var header = sh.getRange(1, 1, 1, cols);
+  header.setBackground(COLOR_PRIMARY).setFontColor('#ffffff').setFontWeight('bold')
+        .setHorizontalAlignment('center').setFontSize(11);
+  sh.setRowHeight(1, 34);
+  sh.setFrozenRows(1);
+
+  // รูปแบบข้อมูลต่อคอลัมน์ (วันที่/เดือนเก็บเป็นข้อความ เพื่อให้สูตรสรุปจับคู่ได้ตรง)
+  sh.getRange(2, 2, n - 1, 2).setNumberFormat('@');   // B,C
+  sh.getRange(2, 12, n - 1, 1).setNumberFormat('@');  // L
+  sh.getRange(2, 10, n - 1, 1).setNumberFormat('#,##0.00');
+  sh.getRange(2, 1, n - 1, 1).setHorizontalAlignment('center');
+  sh.getRange(2, 2, n - 1, 2).setHorizontalAlignment('center');
+  sh.getRange(2, 6, n - 1, 1).setHorizontalAlignment('center');
+  sh.getRange(2, 8, n - 1, 2).setHorizontalAlignment('center');
+  sh.getRange(2, 10, n - 1, 1).setHorizontalAlignment('right').setFontWeight('bold');
+  sh.getRange(2, 11, n - 1, 1).setHorizontalAlignment('center');
+  sh.getRange(2, 12, n - 1, 1).setHorizontalAlignment('center').setFontColor('#9ca3af');
+
+  var widths = [80, 100, 80, 100, 240, 100, 100, 70, 80, 120, 120, 150, 120, 120];
+  for (var c = 0; c < widths.length; c++) sh.setColumnWidth(c + 1, widths[c]);
+
+  // สลับสีแถว
+  var bandings = sh.getBandings();
+  for (var b = 0; b < bandings.length; b++) bandings[b].remove();
+  var banding = sh.getRange(1, 1, n, cols).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, true, false);
+  banding.setHeaderRowColor(COLOR_PRIMARY).setFirstRowColor('#ffffff').setSecondRowColor(COLOR_SOFT);
+
+  // สีตามประเภทและสถานะ
+  var typeRange = sh.getRange(2, 1, n - 1, 1);
+  var statusRange = sh.getRange(2, 11, n - 1, 1);
+  var rules = [
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('รายรับ').setBackground('#d1fae5').setFontColor('#047857').setBold(true).setRanges([typeRange]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('รายจ่าย').setBackground('#fee2e2').setFontColor('#b91c1c').setBold(true).setRanges([typeRange]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('เสร็จสิ้น').setBackground('#d1fae5').setFontColor('#047857').setRanges([statusRange]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('รอดำเนินการ').setBackground('#fef3c7').setFontColor('#b45309').setBold(true).setRanges([statusRange]).build()
+  ];
+  sh.setConditionalFormatRules(rules);
+
+  // ตัวกรอง + ซ่อนคอลัมน์ที่ระบบใช้ภายใน (ID, RAW_JSON)
+  if (!sh.getFilter()) sh.getRange(1, 1, n, cols).createFilter();
+  sh.hideColumns(COL_ID + 1, 2);
+}
+
+// ------------------------------------------------------------
+//  แดชบอร์ดสรุป + กราฟ
+// ------------------------------------------------------------
+function buildDashboard_(ss) {
+  var sh = ss.getSheetByName(SHEET_DASH);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_DASH, 0);
+  } else {
+    sh.getCharts().forEach(function (ch) { sh.removeChart(ch); });
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations();
+    sh.clear();
+  }
+  sh.setTabColor(COLOR_DARK);
+  sh.setHiddenGridlines(true);
+  if (sh.getMaxColumns() < 12) sh.insertColumnsAfter(sh.getMaxColumns(), 12 - sh.getMaxColumns());
+  if (sh.getMaxRows() < 62) sh.insertRowsAfter(sh.getMaxRows(), 62 - sh.getMaxRows());
+
+  var D = "'" + SHEET_DATA + "'!";
+  var S = "'" + SHEET_SET + "'!";
+  var amt = D + '$J$2:$J', typ = D + '$A$2:$A', mon = D + '$C$2:$C', cat = D + '$D$2:$D', who = D + '$F$2:$F', sta = D + '$K$2:$K';
+
+  sh.getRange(1, 1, 62, 12).setFontFamily('Sarabun').setVerticalAlignment('middle');
+  var widths = [110, 110, 110, 110, 24, 120, 110, 70, 24, 110, 110, 24];
+  for (var c = 0; c < widths.length; c++) sh.setColumnWidth(c + 1, widths[c]);
+
+  // หัวเรื่อง
+  sh.getRange('A1:L1').merge().setValue('💖  Our Wallet — สรุปการเงิน')
+    .setBackground(COLOR_PRIMARY).setFontColor('#ffffff').setFontSize(20).setFontWeight('bold')
+    .setHorizontalAlignment('left');
+  sh.setRowHeight(1, 56);
+
+  // เลือกเดือน
+  var thisMonth = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM');
+  sh.getRange('A2').setValue('เลือกเดือนที่ดู ▸').setFontWeight('bold').setHorizontalAlignment('right').setFontColor(COLOR_DARK);
+  sh.getRange('B2').setNumberFormat('@').setValue(thisMonth)
+    .setBackground('#ffffff').setFontWeight('bold').setFontSize(12).setHorizontalAlignment('center')
+    .setBorder(true, true, true, true, false, false, COLOR_PRIMARY, SpreadsheetApp.BorderStyle.SOLID_MEDIUM)
+    .setDataValidation(SpreadsheetApp.newDataValidation().requireValueInRange(sh.getRange('A11:A22'), true).setAllowInvalid(true).build());
+  sh.getRange('C2').setValue('(ตารางและกราฟด้านล่างเปลี่ยนตามเดือนที่เลือก)').setFontColor('#9ca3af').setFontSize(9);
+  sh.setRowHeight(2, 32);
+  sh.getRange('A3:L3').setBackground(COLOR_SOFT);
+  sh.setRowHeight(3, 8);
+
+  // การ์ดตัวเลขสำคัญ
+  var cards = [
+    {range: 'A4:B4', valRange: 'A5:B5', subRange: 'A6:B6', label: 'รายรับ', color: COLOR_INCOME,
+     formula: '=SUMIFS(' + amt + ',' + typ + ',"รายรับ",' + mon + ',$B$2)', sub: '="เดือน "&$B$2'},
+    {range: 'C4:D4', valRange: 'C5:D5', subRange: 'C6:D6', label: 'รายจ่าย', color: COLOR_EXPENSE,
+     formula: '=SUMIFS(' + amt + ',' + typ + ',"รายจ่าย",' + mon + ',$B$2)', sub: '="จ่ายแล้ว "&TEXT(SUMIFS(' + amt + ',' + typ + ',"รายจ่าย",' + sta + ',"เสร็จสิ้น",' + mon + ',$B$2),"#,##0")'},
+    {range: 'F4:G4', valRange: 'F5:G5', subRange: 'F6:G6', label: 'คงเหลือ', color: COLOR_DARK,
+     formula: '=A5-C5', sub: '=IF(A5=0,"-",TEXT((A5-C5)/A5,"0%")&" ของรายรับ")'},
+    {range: 'H4:K4', valRange: 'H5:K5', subRange: 'H6:K6', label: 'บิลรอจ่าย', color: '#f59e0b',
+     formula: '=SUMIFS(' + amt + ',' + typ + ',"รายจ่าย",' + sta + ',"รอดำเนินการ",' + mon + ',$B$2)',
+     sub: '=COUNTIFS(' + typ + ',"รายจ่าย",' + sta + ',"รอดำเนินการ",' + mon + ',$B$2)&" รายการ"'}
+  ];
+  cards.forEach(function (card) {
+    sh.getRange(card.range).merge().setValue(card.label).setFontSize(10).setFontColor('#6b7280').setHorizontalAlignment('center').setBackground('#ffffff');
+    sh.getRange(card.valRange).merge().setFormula(card.formula).setNumberFormat('฿#,##0.00').setFontSize(18).setFontWeight('bold')
+      .setFontColor(card.color).setHorizontalAlignment('center').setBackground('#ffffff');
+    sh.getRange(card.subRange).merge().setFormula(card.sub).setFontSize(9).setFontColor('#9ca3af').setHorizontalAlignment('center').setBackground('#ffffff');
+    sh.getRange(card.range.split(':')[0] + ':' + card.subRange.split(':')[1])
+      .setBorder(true, true, true, true, false, false, '#fecdd3', SpreadsheetApp.BorderStyle.SOLID);
+  });
+  sh.setRowHeight(4, 24); sh.setRowHeight(5, 40); sh.setRowHeight(6, 22);
+
+  // งบประมาณ
+  sh.getRange('A7:K7').merge()
+    .setFormula('=IFERROR(IF(VLOOKUP($B$2,' + S + '$A:$B,2,FALSE)>0,"🎯 งบเดือนนี้ "&TEXT(VLOOKUP($B$2,' + S + '$A:$B,2,FALSE),"#,##0")&" บาท  •  ใช้ไป "&TEXT(C5/VLOOKUP($B$2,' + S + '$A:$B,2,FALSE),"0%")&IF(C5>VLOOKUP($B$2,' + S + '$A:$B,2,FALSE),"  ⚠️ เกินงบ",""),"🎯 ยังไม่ได้ตั้งงบเดือนนี้ (ตั้งได้ในแอป)"),"🎯 ยังไม่ได้ตั้งงบเดือนนี้ (ตั้งได้ในแอป)")')
+    .setHorizontalAlignment('center').setFontColor(COLOR_DARK).setFontWeight('bold').setBackground(COLOR_SOFT);
+  sh.setRowHeight(7, 30);
+
+  // ตารางที่ 1: 12 เดือนล่าสุด
+  sectionTitle_(sh, 'A9:D9', '📈 รายรับ–รายจ่าย 12 เดือนล่าสุด');
+  tableHeader_(sh.getRange('A10:D10'), ['เดือน', 'รายรับ', 'รายจ่าย', 'คงเหลือ']);
+  for (var r = 11; r <= 22; r++) {
+    var offset = r - 22;
+    sh.getRange(r, 1).setFormula('=YEAR(EDATE(TODAY(),' + offset + '))&"-"&TEXT(MONTH(EDATE(TODAY(),' + offset + ')),"00")');
+    sh.getRange(r, 2).setFormula('=SUMIFS(' + amt + ',' + typ + ',"รายรับ",' + mon + ',$A' + r + ')');
+    sh.getRange(r, 3).setFormula('=SUMIFS(' + amt + ',' + typ + ',"รายจ่าย",' + mon + ',$A' + r + ')');
+    sh.getRange(r, 4).setFormula('=B' + r + '-C' + r);
+  }
+  sh.getRange('A11:A22').setHorizontalAlignment('center');
+  sh.getRange('B11:D22').setNumberFormat('#,##0').setHorizontalAlignment('right');
+  sh.getRange('A11:D22').setBorder(null, null, true, null, null, true, '#fce7eb', SpreadsheetApp.BorderStyle.SOLID);
+
+  // ตารางที่ 2: ตามหมวดหมู่
+  sectionTitle_(sh, 'F9:H9', '🍩 รายจ่ายตามหมวด');
+  tableHeader_(sh.getRange('F10:H10'), ['หมวด', 'จำนวน', '%']);
+  for (var i = 0; i < EXPENSE_CATEGORIES.length; i++) {
+    var rr = 11 + i;
+    sh.getRange(rr, 6).setValue(EXPENSE_CATEGORIES[i]);
+    sh.getRange(rr, 7).setFormula('=SUMIFS(' + amt + ',' + typ + ',"รายจ่าย",' + cat + ',$F' + rr + ',' + mon + ',$B$2)');
+    sh.getRange(rr, 8).setFormula('=IF(SUM($G$11:$G$17)=0,0,G' + rr + '/SUM($G$11:$G$17))');
+  }
+  sh.getRange('G11:G17').setNumberFormat('#,##0').setHorizontalAlignment('right');
+  sh.getRange('H11:H17').setNumberFormat('0%').setHorizontalAlignment('right').setFontColor('#6b7280');
+  sh.getRange('F11:H17').setBorder(null, null, true, null, null, true, '#fce7eb', SpreadsheetApp.BorderStyle.SOLID);
+  sh.getRange('F18:H18').setValues([['รวม', '', '']]);
+  sh.getRange('G18').setFormula('=SUM(G11:G17)').setNumberFormat('#,##0').setHorizontalAlignment('right');
+  sh.getRange('F18:H18').setFontWeight('bold').setBackground(COLOR_SOFT);
+
+  // ตารางที่ 3: ตามคน
+  sectionTitle_(sh, 'J9:K9', '👫 รายจ่ายตามคน');
+  tableHeader_(sh.getRange('J10:K10'), ['คน', 'จำนวน']);
+  for (var p = 0; p < PEOPLE.length; p++) {
+    var pr = 11 + p;
+    sh.getRange(pr, 10).setValue(PEOPLE[p]);
+    sh.getRange(pr, 11).setFormula('=SUMIFS(' + amt + ',' + typ + ',"รายจ่าย",' + who + ',$J' + pr + ',' + mon + ',$B$2)');
+  }
+  sh.getRange('K11:K13').setNumberFormat('#,##0').setHorizontalAlignment('right');
+  sh.getRange('J11:K13').setBorder(null, null, true, null, null, true, '#fce7eb', SpreadsheetApp.BorderStyle.SOLID);
+
+  // กราฟ
+  sectionTitle_(sh, 'A24:K24', '📊 กราฟสรุป');
+
+  var chart1 = sh.newChart().asColumnChart()
+    .addRange(sh.getRange('A10:C22'))
+    .setNumHeaders(1)
+    .setOption('title', 'รายรับ vs รายจ่าย รายเดือน')
+    .setOption('colors', [COLOR_INCOME, COLOR_EXPENSE])
+    .setOption('legend', {position: 'bottom'})
+    .setOption('vAxis', {format: '#,##0', gridlines: {color: '#f3f4f6'}})
+    .setOption('bar', {groupWidth: '65%'})
+    .setOption('width', 450).setOption('height', 300)
+    .setPosition(25, 1, 0, 6).build();
+  sh.insertChart(chart1);
+
+  var chart2 = sh.newChart().asPieChart()
+    .addRange(sh.getRange('F10:G17'))
+    .setNumHeaders(1)
+    .setOption('title', 'สัดส่วนรายจ่ายตามหมวด (เดือนที่เลือก)')
+    .setOption('pieHole', 0.5)
+    .setOption('colors', ['#ff4d6d', '#f59e0b', '#8b5cf6', '#0ea5e9', '#10b981', '#c9184a', '#9ca3af'])
+    .setOption('legend', {position: 'right'})
+    .setOption('pieSliceText', 'percentage')
+    .setOption('width', 520).setOption('height', 300)
+    .setPosition(25, 6, 10, 6).build();
+  sh.insertChart(chart2);
+
+  var chart3 = sh.newChart().asLineChart()
+    .addRange(sh.getRange('A10:A22'))
+    .addRange(sh.getRange('D10:D22'))
+    .setNumHeaders(1)
+    .setOption('title', 'เงินคงเหลือสุทธิรายเดือน')
+    .setOption('colors', [COLOR_DARK])
+    .setOption('legend', {position: 'none'})
+    .setOption('curveType', 'function')
+    .setOption('pointSize', 5)
+    .setOption('vAxis', {format: '#,##0', gridlines: {color: '#f3f4f6'}})
+    .setOption('width', 450).setOption('height', 300)
+    .setPosition(41, 1, 0, 6).build();
+  sh.insertChart(chart3);
+
+  var chart4 = sh.newChart().asBarChart()
+    .addRange(sh.getRange('J10:K13'))
+    .setNumHeaders(1)
+    .setOption('title', 'รายจ่ายตามคน (เดือนที่เลือก)')
+    .setOption('colors', ['#8b5cf6'])
+    .setOption('legend', {position: 'none'})
+    .setOption('hAxis', {format: '#,##0', gridlines: {color: '#f3f4f6'}})
+    .setOption('width', 520).setOption('height', 300)
+    .setPosition(41, 6, 10, 6).build();
+  sh.insertChart(chart4);
+
+  sh.getRange('A58').setValue('ข้อมูลทั้งหมดคำนวณจากแท็บ "รายการ" อัตโนมัติ  •  อย่าแก้ตัวเลขในแท็บนี้ (แก้ได้เฉพาะช่อง "เลือกเดือนที่ดู")')
+    .setFontSize(9).setFontColor('#9ca3af');
+  sh.setFrozenRows(2);
+  ss.setActiveSheet(sh);
+}
+
+function sectionTitle_(sh, a1, text) {
+  sh.getRange(a1).merge().setValue(text).setFontWeight('bold').setFontSize(12).setFontColor(COLOR_DARK).setHorizontalAlignment('left');
+}
+
+function tableHeader_(range, labels) {
+  range.setValues([labels]).setBackground(COLOR_PRIMARY).setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
 }

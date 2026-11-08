@@ -130,6 +130,23 @@
             </div>
         </div>
 
+        <!-- Stats -->
+        <div id="statsSection" class="glass-card rounded-3xl p-5 space-y-5">
+            <h3 class="font-bold text-gray-700 flex items-center gap-2"><i class="ph-fill ph-chart-bar text-primary"></i> สรุปกราฟ</h3>
+            <div>
+                <p class="text-xs font-medium text-gray-500 mb-2">รายรับ-รายจ่าย 6 เดือนล่าสุด</p>
+                <div id="trendChart" class="flex items-end justify-between gap-2 h-36"></div>
+                <div class="flex justify-center gap-4 mt-2 text-[11px] text-gray-500">
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-income inline-block"></span>รายรับ</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-expense inline-block"></span>รายจ่าย</span>
+                </div>
+            </div>
+            <div>
+                <p class="text-xs font-medium text-gray-500 mb-2">รายจ่ายตามหมวด (เดือนที่เลือก)</p>
+                <div id="categoryChart" class="space-y-2"></div>
+            </div>
+        </div>
+
         <!-- Reminders -->
         <div id="remindersSection" class="hidden animate-scale-in">
             <h3 class="font-bold text-orange-600 mb-3 flex items-center gap-2 px-1"><i class="ph-fill ph-bell-ringing"></i> บิลรอจ่าย</h3>
@@ -315,6 +332,7 @@
             return String(str).replace(/[&<>'"]/g, tag => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[tag] || tag));
         };
         const formatMoney = (amt) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amt);
+        const localDateStr = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const formatDate = (ds) => ds ? new Date(ds).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) : "-";
 
         async function init() {
@@ -410,14 +428,14 @@
             if(!currentEditId) {
                 if(id === 'incomeModal') {
                     document.getElementById('incomeForm').reset();
-                    document.getElementById('incDate').valueAsDate = new Date();
+                    document.getElementById('incDate').value = localDateStr();
                     document.getElementById('incNetAmountDisplay').textContent = "฿0.00";
                     document.getElementById('incModalTitle').innerHTML = '<i class="ph-fill ph-plus-circle"></i> เพิ่มรายรับ';
                     document.getElementById('incSubmitBtn').textContent = "บันทึกรายรับ";
                 }
                 if(id === 'expenseModal') {
                     document.getElementById('expenseForm').reset();
-                    document.getElementById('expDueDate').valueAsDate = new Date();
+                    document.getElementById('expDueDate').value = localDateStr();
                     document.getElementById('expModalTitle').innerHTML = '<i class="ph-fill ph-minus-circle"></i> เพิ่มรายจ่าย';
                     document.getElementById('expSubmitBtn').textContent = "บันทึกรายจ่าย";
                 }
@@ -439,6 +457,7 @@
             } else {
                 localStorage.removeItem('budget_' + currentMonthYear);
             }
+            sendToSheets({ action: 'budget', month: currentMonthYear, amount: Number(budgetVal) > 0 ? Number(budgetVal) : 0 });
             window.closeModal();
             renderDashboard();
             window.showToast("บันทึกงบประมาณแล้ว");
@@ -508,7 +527,7 @@
                     const newBill = {
                         ...oldBill,
                         id: Date.now().toString() + Math.floor(Math.random()*1000), // สร้าง ID ใหม่
-                        date: newD.toISOString().split('T')[0],
+                        date: localDateStr(newD),
                         monthYear: currentMonthYear,
                         isCompleted: false, // ตั้งเป็นยังไม่จ่ายเสมอ
                         currentInstallment: newCurInst,
@@ -596,11 +615,37 @@
                 const result = await response.json();
                 // ข้ามถ้ามีการบันทึกค้างอยู่ เพื่อไม่ให้ข้อมูลใหม่ถูกทับ
                 if (result.status === 'success' && pendingWrites === 0 && Date.now() - lastWriteAt > 1500) {
+                    // ครั้งแรกที่เชื่อม Sheets ที่ยังว่าง: อัปโหลดข้อมูลในเครื่องขึ้นไปก่อน แทนที่จะลบทิ้ง
+                    const seedKey = 'sheetsSeeded_' + window.sheetsWebhookUrl;
+                    if (!localStorage.getItem(seedKey)) {
+                        localStorage.setItem(seedKey, '1');
+                        if (result.data.length === 0 && allTransactions.length > 0) {
+                            for (const t of allTransactions) await sendToSheets(t);
+                            for (let k = 0; k < localStorage.length; k++) {
+                                const key = localStorage.key(k);
+                                if (key && key.startsWith('budget_')) await sendToSheets({ action: 'budget', month: key.slice(7), amount: Number(localStorage.getItem(key)) });
+                            }
+                            if (!silent) window.showToast("อัปโหลดข้อมูลขึ้น Sheets แล้ว", "success");
+                            return;
+                        }
+                    }
+                    let changed = false;
                     if (JSON.stringify(result.data) !== JSON.stringify(allTransactions)) {
                         allTransactions = result.data;
                         localStorage.setItem('ourWalletData', JSON.stringify(allTransactions));
-                        renderDashboard();
+                        changed = true;
                     }
+                    if (result.budgets) {
+                        const remote = result.budgets;
+                        for (let k = localStorage.length - 1; k >= 0; k--) {
+                            const key = localStorage.key(k);
+                            if (key && key.startsWith('budget_') && !(key.slice(7) in remote)) { localStorage.removeItem(key); changed = true; }
+                        }
+                        Object.entries(remote).forEach(([m, v]) => {
+                            if (localStorage.getItem('budget_' + m) !== String(v)) { localStorage.setItem('budget_' + m, String(v)); changed = true; }
+                        });
+                    }
+                    if (changed) renderDashboard();
                     if (!silent) window.showToast("ซิงค์สำเร็จ", "success");
                 }
             } catch (error) { }
@@ -675,24 +720,18 @@
             }
             monthlyData.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-            let incTotal = 0, expTotal = 0, monthlyExpTotal = 0;
+            // ยอดของเดือนที่เลือก (ไม่ขึ้นกับช่องค้นหา) และยอดสะสม
+            let incTotal = 0, monthlyExpTotal = 0, cumInc = 0, cumExp = 0;
+            allTransactions.forEach(t => {
+                const isInc = t.type === 'income';
+                const val = Number(isInc ? t.netAmount : t.amount) || 0;
+                if (t.monthYear === currentMonthYear) { if (isInc) incTotal += val; else monthlyExpTotal += val; }
+                if (t.monthYear <= currentMonthYear) { if (isInc) cumInc += val; else cumExp += val; }
+            });
+            const expTotal = monthlyExpTotal;
+            const balance = isCarryForward ? cumInc - cumExp : incTotal - expTotal;
 
-            if (isCarryForward) {
-                allTransactions.forEach(t => {
-                    if (t.monthYear <= currentMonthYear) {
-                        if (t.type === 'income') incTotal += t.netAmount;
-                        if (t.type === 'expense') expTotal += t.amount;
-                    }
-                    if (t.monthYear === currentMonthYear && t.type === 'expense') monthlyExpTotal += t.amount;
-                });
-            } else {
-                monthlyData.forEach(t => {
-                    if (t.type === 'income') incTotal += t.netAmount;
-                    if (t.type === 'expense') { expTotal += t.amount; monthlyExpTotal += t.amount; }
-                });
-            }
-
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = localDateStr();
 
             if (monthlyData.length === 0) {
                 list.innerHTML = `<div class="text-center py-10 text-gray-400 glass-card rounded-2xl"><p>ไม่มีรายการ${searchQuery?'ที่ค้นหา':''}</p></div>`;
@@ -740,9 +779,10 @@
                 });
             }
 
-            document.getElementById('totalIncome').textContent = isCarryForward ? "สะสม" : formatMoney(incTotal);
-            document.getElementById('totalExpense').textContent = isCarryForward ? "สะสม" : formatMoney(expTotal);
-            document.getElementById('totalBalance').textContent = formatMoney(incTotal - expTotal);
+            document.getElementById('totalIncome').textContent = formatMoney(incTotal);
+            document.getElementById('totalExpense').textContent = formatMoney(expTotal);
+            document.getElementById('totalBalance').textContent = formatMoney(balance);
+            renderStats();
 
             // --- ระบบงบประมาณ (Budget) ---
             const currentBudget = localStorage.getItem('budget_' + currentMonthYear);
@@ -800,6 +840,53 @@
             } else {
                 document.getElementById('remindersSection').classList.add('hidden');
             }
+        }
+
+        const CATEGORY_COLORS = ['#ff4d6d', '#f59e0b', '#8b5cf6', '#0ea5e9', '#10b981', '#c9184a', '#9ca3af'];
+        function renderStats() {
+            // กราฟแท่ง 6 เดือนล่าสุด
+            const [cy, cm] = currentMonthYear.split('-').map(Number);
+            const months = [];
+            for (let k = 5; k >= 0; k--) {
+                const d = new Date(cy, cm - 1 - k, 1);
+                months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }
+            const sums = months.map(m => {
+                let inc = 0, exp = 0;
+                allTransactions.forEach(t => {
+                    if (t.monthYear !== m) return;
+                    if (t.type === 'income') inc += Number(t.netAmount) || 0; else exp += Number(t.amount) || 0;
+                });
+                return { m, inc, exp };
+            });
+            const maxVal = Math.max(1, ...sums.map(s => Math.max(s.inc, s.exp)));
+            const monthName = (m) => new Date(m + '-01').toLocaleDateString('th-TH', { month: 'short' });
+            document.getElementById('trendChart').innerHTML = sums.map(s => `
+                <div class="flex-1 flex flex-col items-center gap-1 h-full min-w-0">
+                    <div class="flex items-end gap-0.5 w-full flex-1 justify-center">
+                        <div class="w-1/2 max-w-[14px] bg-income rounded-t" style="height:${Math.round(s.inc / maxVal * 100)}%" title="รายรับ ${formatMoney(s.inc)}"></div>
+                        <div class="w-1/2 max-w-[14px] bg-expense rounded-t" style="height:${Math.round(s.exp / maxVal * 100)}%" title="รายจ่าย ${formatMoney(s.exp)}"></div>
+                    </div>
+                    <span class="text-[10px] ${s.m === currentMonthYear ? 'font-bold text-primary' : 'text-gray-400'}">${monthName(s.m)}</span>
+                </div>`).join('');
+
+            // รายจ่ายตามหมวด
+            const byCat = {};
+            allTransactions.forEach(t => {
+                if (t.type === 'expense' && t.monthYear === currentMonthYear) byCat[t.category || 'อื่นๆ'] = (byCat[t.category || 'อื่นๆ'] || 0) + (Number(t.amount) || 0);
+            });
+            const entries = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+            const total = entries.reduce((a, [, v]) => a + v, 0);
+            document.getElementById('categoryChart').innerHTML = entries.length === 0
+                ? '<p class="text-center text-xs text-gray-400 py-3">ยังไม่มีรายจ่ายในเดือนนี้</p>'
+                : entries.map(([name, val], idx) => {
+                    const pct = total ? Math.round(val / total * 100) : 0;
+                    return `
+                    <div>
+                        <div class="flex justify-between text-xs mb-0.5"><span class="text-gray-700">${escapeHTML(name)}</span><span class="text-gray-500">${formatMoney(val)} · ${pct}%</span></div>
+                        <div class="w-full bg-gray-100 rounded-full h-2"><div class="h-2 rounded-full" style="width:${pct}%;background:${CATEGORY_COLORS[idx % CATEGORY_COLORS.length]}"></div></div>
+                    </div>`;
+                }).join('');
         }
 
         window.toggleStatus = (id) => { const i = allTransactions.find(t=>t.id===id); if(i){ i.isCompleted = !i.isCompleted; i.timestamp = Date.now(); window.saveAndSync(i); } };
