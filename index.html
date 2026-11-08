@@ -16,7 +16,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.3.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.4.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -52,10 +52,25 @@
         .animate-modal { animation: slideUpSheet 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .list-item-enter { opacity: 0; animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .floating-icon { animation: float 4s ease-in-out infinite; }
-        .toast-enter { transform: translateY(100%); opacity: 0; }
-        .toast-enter-active { transform: translateY(0); opacity: 1; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .toast-exit { transform: translateY(0); opacity: 1; }
-        .toast-exit-active { transform: translateY(100%); opacity: 0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(-16px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes toastOut { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(-16px) scale(0.95); } }
+        .toast-enter-active { animation: toastIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        .toast-exit-active { animation: toastOut 0.3s cubic-bezier(0.4, 0, 1, 1) forwards; }
+        /* ฉากหลังของหน้าต่างป๊อปอัปค่อยๆ ปรากฏ */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        #modalContainer.flex { animation: fadeIn 0.25s ease-out both; }
+        /* แถบกราฟค่อยๆ ยืดออกเมื่อโหลดหรือเปลี่ยนเดือน */
+        @keyframes growX { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+        @keyframes growY { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+        .bar-x { transform-origin: left center; animation: growX 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
+        .bar-y { transform-origin: center bottom; animation: growY 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
+        /* ปุ่มยุบตัวเล็กน้อยตอนกด */
+        button { transition: transform 0.15s ease, background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease; }
+        button:active:not(:disabled) { transform: scale(0.96); }
+        /* ผู้ใช้ที่ปิดแอนิเมชันในระบบ */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+        }
         .toggle-checkbox:checked { right: 0; border-color: #ff4d6d; }
         .toggle-checkbox:checked + .toggle-label { background-color: #ff4d6d; }
     </style>
@@ -365,6 +380,8 @@
         let currentEditId = null;
         let searchQuery = "";
         let viewFilter = 'all';
+        let animateNext = true;      // เล่นแอนิเมชันเข้าเฉพาะตอนเปิดแอป/เปลี่ยนเดือน/เปลี่ยนมุมมอง
+        let highlightId = null;      // รายการที่เพิ่งบันทึก เล่นแอนิเมชันเฉพาะรายการนั้น
         // --- คิวส่งข้อมูลไป Google Sheets (เก็บในเครื่อง ส่งซ้ำเองจนสำเร็จ) ---
         let syncQueue = [];
         try { syncQueue = JSON.parse(localStorage.getItem('walletQueue')) || []; } catch (e) { syncQueue = []; }
@@ -463,11 +480,15 @@
             updateSyncStatus();
             flushQueue();
             syncFromSheets();
-            setTimeout(() => document.getElementById('loadingOverlay').style.display = 'none', 300);
+            setTimeout(() => {
+                const ov = document.getElementById('loadingOverlay');
+                ov.style.opacity = '0'; ov.style.pointerEvents = 'none';
+                setTimeout(() => ov.style.display = 'none', 350);
+            }, 300);
         }
 
         function setupListeners() {
-            document.getElementById('monthSelector').addEventListener('change', (e) => { currentMonthYear = e.target.value; renderDashboard(); });
+            document.getElementById('monthSelector').addEventListener('change', (e) => { currentMonthYear = e.target.value; animateNext = true; renderDashboard(); });
             document.getElementById('searchInput').addEventListener('input', (e) => { searchQuery = e.target.value.trim().toLowerCase(); renderDashboard(); });
 
             document.getElementById('carryForwardToggle').addEventListener('change', (e) => {
@@ -747,6 +768,7 @@
 
         window.saveAndSync = async (data, modalId) => {
             window.closeModal();
+            highlightId = data.id;
             const index = allTransactions.findIndex(t => t.id === data.id);
             if(index > -1) allTransactions[index] = data;
             else allTransactions.push(data);
@@ -948,6 +970,7 @@
         }
 
         function renderDashboard() {
+            const anim = animateNext; animateNext = false;
             const list = document.getElementById('transactionsList');
             const remList = document.getElementById('remindersList');
             const isCarryForward = document.getElementById('carryForwardToggle').checked;
@@ -1009,8 +1032,11 @@
                     const whoBadge = t.who && t.who !== 'กองกลาง' ? `<span class="bg-blue-50 text-blue-600 px-1 rounded ml-1">${escapeHTML(t.who)}</span>` : '';
 
                     const div = document.createElement('div');
-                    div.className = "glass-card rounded-2xl p-4 flex justify-between items-center group list-item-enter";
-                    div.style.animationDelay = `${i * 0.05}s`;
+                    div.className = "glass-card rounded-2xl p-4 flex justify-between items-center group";
+                    if (anim || t.id === highlightId) {
+                        div.classList.add('list-item-enter');
+                        if (anim) div.style.animationDelay = `${Math.min(i, 8) * 0.045}s`;
+                    }
 
                     if (t.type === 'income') {
                         const taxBadge = t.taxRate > 0 ? `<span class="text-yellow-600 bg-yellow-50 px-1 rounded text-xs ml-1">หัก ${t.taxRate}%</span>` : '';
@@ -1048,11 +1074,12 @@
                 });
             }
 
-            document.getElementById('totalIncome').textContent = formatMoney(incTotal);
-            document.getElementById('totalExpense').textContent = formatMoney(expTotal);
-            document.getElementById('totalBalance').textContent = formatMoney(balance);
-            renderStats();
-            renderBreakdowns();
+            tweenNumber(document.getElementById('totalIncome'), incTotal);
+            tweenNumber(document.getElementById('totalExpense'), expTotal);
+            tweenNumber(document.getElementById('totalBalance'), balance);
+            renderStats(anim);
+            renderBreakdowns(anim);
+            highlightId = null;
 
             // --- ระบบงบประมาณ (Budget) ---
             const currentBudget = localStorage.getItem('budget_' + currentMonthYear);
@@ -1113,7 +1140,7 @@
         }
 
         const CATEGORY_COLORS = ['#ff4d6d', '#f59e0b', '#8b5cf6', '#0ea5e9', '#10b981', '#c9184a', '#9ca3af'];
-        function renderStats() {
+        function renderStats(anim) {
             // กราฟแท่ง 6 เดือนล่าสุด
             const [cy, cm] = currentMonthYear.split('-').map(Number);
             const months = [];
@@ -1134,8 +1161,8 @@
             document.getElementById('trendChart').innerHTML = sums.map(s => `
                 <div class="flex-1 flex flex-col items-center gap-1 h-full min-w-0">
                     <div class="flex items-end gap-0.5 w-full flex-1 justify-center">
-                        <div class="w-1/2 max-w-[14px] bg-income rounded-t" style="height:${Math.round(s.inc / maxVal * 100)}%" title="รายรับ ${formatMoney(s.inc)}"></div>
-                        <div class="w-1/2 max-w-[14px] bg-expense rounded-t" style="height:${Math.round(s.exp / maxVal * 100)}%" title="รายจ่าย ${formatMoney(s.exp)}"></div>
+                        <div class="w-1/2 max-w-[14px] bg-income rounded-t${anim ? ' bar-y' : ''}" style="height:${Math.round(s.inc / maxVal * 100)}%" title="รายรับ ${formatMoney(s.inc)}"></div>
+                        <div class="w-1/2 max-w-[14px] bg-expense rounded-t${anim ? ' bar-y' : ''}" style="height:${Math.round(s.exp / maxVal * 100)}%" title="รายจ่าย ${formatMoney(s.exp)}"></div>
                     </div>
                     <span class="text-[10px] ${s.m === currentMonthYear ? 'font-bold text-primary' : 'text-gray-400'}">${monthName(s.m)}</span>
                 </div>`).join('');
@@ -1154,14 +1181,30 @@
                     return `
                     <div>
                         <div class="flex justify-between text-xs mb-0.5"><span class="text-gray-700">${escapeHTML(name)}</span><span class="text-gray-500">${formatMoney(val)} · ${pct}%</span></div>
-                        <div class="w-full bg-gray-100 rounded-full h-2"><div class="h-2 rounded-full" style="width:${pct}%;background:${CATEGORY_COLORS[idx % CATEGORY_COLORS.length]}"></div></div>
+                        <div class="w-full bg-gray-100 rounded-full h-2"><div class="h-2 rounded-full${anim ? ' bar-x' : ''}" style="width:${pct}%;background:${CATEGORY_COLORS[idx % CATEGORY_COLORS.length]}"></div></div>
                     </div>`;
                 }).join('');
         }
 
-        window.setView = (v) => { viewFilter = v; renderDashboard(); };
+        // ตัวเลขนับขึ้น/ลงนุ่มๆ เมื่อค่าเปลี่ยน
+        function tweenNumber(el, to) {
+            const from = Number(el.dataset.v) || 0;
+            el.dataset.v = to;
+            if (el._raf) cancelAnimationFrame(el._raf);
+            if (from === to || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = formatMoney(to); return; }
+            const t0 = performance.now(), dur = 700;
+            const step = (now) => {
+                const k = Math.min(1, (now - t0) / dur);
+                const eased = 1 - Math.pow(1 - k, 3);
+                el.textContent = formatMoney(from + (to - from) * eased);
+                if (k < 1) el._raf = requestAnimationFrame(step);
+            };
+            el._raf = requestAnimationFrame(step);
+        }
 
-        function renderBreakdowns() {
+        window.setView = (v) => { viewFilter = v; animateNext = true; renderDashboard(); };
+
+        function renderBreakdowns(anim) {
             // ปุ่มกรอง รายรับ/รายจ่าย
             const chipStyle = {
                 all: ['bg-gray-800', 'text-white', 'border-gray-800'],
@@ -1206,7 +1249,7 @@
                     return `
                     <div>
                         <div class="flex justify-between text-xs mb-0.5"><span class="text-gray-700">${escapeHTML(name)}</span><span class="text-gray-500">${formatMoney(val)} · ${p}%</span></div>
-                        <div class="w-full bg-gray-100 rounded-full h-2"><div class="h-2 rounded-full" style="width:${p}%;background:${GREENS[idx % GREENS.length]}"></div></div>
+                        <div class="w-full bg-gray-100 rounded-full h-2"><div class="h-2 rounded-full${anim ? ' bar-x' : ''}" style="width:${p}%;background:${GREENS[idx % GREENS.length]}"></div></div>
                     </div>`;
                 }).join('');
 
@@ -1225,8 +1268,8 @@
                         <span class="font-semibold text-sm text-gray-700">${escapeHTML(r.name)}</span>
                         <span class="text-xs font-bold ${r.i - r.e >= 0 ? 'text-income' : 'text-expense'}">สุทธิ ${formatMoney(r.i - r.e)}</span>
                     </div>
-                    <div class="flex items-center gap-2 text-[11px] mb-1"><span class="w-12 text-gray-500">รายรับ</span><div class="flex-1 bg-green-100 rounded-full h-2"><div class="h-2 rounded-full bg-income" style="width:${Math.round(r.i / maxP * 100)}%"></div></div><span class="w-24 text-right text-income font-medium">${formatMoney(r.i)}</span></div>
-                    <div class="flex items-center gap-2 text-[11px]"><span class="w-12 text-gray-500">รายจ่าย</span><div class="flex-1 bg-red-100 rounded-full h-2"><div class="h-2 rounded-full bg-expense" style="width:${Math.round(r.e / maxP * 100)}%"></div></div><span class="w-24 text-right text-expense font-medium">${formatMoney(r.e)}</span></div>
+                    <div class="flex items-center gap-2 text-[11px] mb-1"><span class="w-12 text-gray-500">รายรับ</span><div class="flex-1 bg-green-100 rounded-full h-2"><div class="h-2 rounded-full${anim ? ' bar-x' : ''} bg-income" style="width:${Math.round(r.i / maxP * 100)}%"></div></div><span class="w-24 text-right text-income font-medium">${formatMoney(r.i)}</span></div>
+                    <div class="flex items-center gap-2 text-[11px]"><span class="w-12 text-gray-500">รายจ่าย</span><div class="flex-1 bg-red-100 rounded-full h-2"><div class="h-2 rounded-full${anim ? ' bar-x' : ''} bg-expense" style="width:${Math.round(r.e / maxP * 100)}%"></div></div><span class="w-24 text-right text-expense font-medium">${formatMoney(r.e)}</span></div>
                 </div>`).join('');
         }
 
