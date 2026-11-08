@@ -40,6 +40,7 @@ function load(sheetName, skip) {
   for (const [k, f] of sh.formulas) {
     const [r, c] = k.split(',').map(Number);
     if (skip && skip(r, c, f)) continue;
+    if (/SPARKLINE\(|QUERY\(/.test(f)) continue;   // ตัวตรวจสูตรไม่รองรับ จึงตรวจข้อความสูตรแยกด้านล่าง
     while (m.length < r) m.push([]);
     while (m[r - 1].length < c) m[r - 1].push('');
     m[r - 1][c - 1] = bound(f).replace(/,FALSE\)/g, ',FALSE())');
@@ -119,5 +120,18 @@ console.log('  ', mq);
 ok(mq.includes("where C='\"&$B$2&\"'") && mq.includes('select B,A,D,E,F,G,O,J,K') , 'QUERY selects the right columns by header position');
 ok((mq.match(/\(/g) || []).length === (mq.match(/\)/g) || []).length, 'parentheses balanced');
 
+console.log('== sparklines / top 5 formula text ==');
+const dash = env.ss.getSheetByName('สรุป');
+const fx = (a, r, c) => a.formulas.get(r + ',' + c) || '';
+ok(fx(dash, 25, 2).includes('SPARKLINE($B$11:$B$22') && fx(dash, 26, 2).includes('SPARKLINE($C$11:$C$22') && fx(dash, 27, 2).includes('negcolor'), 'dashboard trend sparklines point at the 12-month table');
+const top5 = fx(dash, 26, 6);
+ok(top5.includes("select E,J where A='รายจ่าย' and C='\"&$B$2&\"'") && top5.includes('order by J desc limit 5'), 'Top 5 query uses the right columns: ' + top5.slice(0, 120));
+ok(fx(dash, 26, 8).includes('SPARKLINE(G26') && fx(dash, 30, 8).includes('MAX($G$26:$G$30)'), 'Top 5 bars scale to the largest item');
+ok(fx(dash, 29, 3).includes('AVERAGEIF($B$11:$B$22') && fx(dash, 31, 3).includes('MATCH(MAX($C$11:$C$22)'), 'average and peak-month stats');
+const planF = env.ss.getSheetByName('ลำดับจ่าย');
+ok(fx(planF, 26, 11).includes('SPARKLINE(I26') && fx(planF, 105, 11).includes('MAX($I$26:$I$105)'), 'plan rows get an amount bar');
+const bal = (s) => (s.match(/\(/g) || []).length === (s.match(/\)/g) || []).length && (s.match(/"/g) || []).length % 2 === 0;
+const allBalanced = [dash, planF, env.ss.getSheetByName('รายเดือน')].every((sh) => [...sh.formulas.values()].every(bal));
+ok(allBalanced, 'every formula has balanced parentheses and quotes');
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

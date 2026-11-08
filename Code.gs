@@ -644,7 +644,7 @@ function buildDashboard_(ss) {
   sh.setHiddenGridlines(true);
   ensureSize_(sh, 90, 12);
   sh.getRange(1, 1, 90, 12).setFontFamily('Sarabun').setVerticalAlignment('middle');
-  var widths = [110, 110, 110, 110, 24, 120, 110, 100, 24, 110, 110, 24];
+  var widths = [110, 110, 110, 110, 24, 140, 110, 100, 24, 110, 110, 24];
   for (var c = 0; c < widths.length; c++) sh.setColumnWidth(c + 1, widths[c]);
 
   sh.getRange('A1:L1').merge().setValue('💖  Our Wallet — สรุปการเงิน')
@@ -759,6 +759,40 @@ function buildDashboard_(ss) {
   }
   sh.getRange('K23:K31').setNumberFormat('#,##0').setHorizontalAlignment('right');
 
+  // แนวโน้ม 12 เดือน (กราฟจิ๋วในช่อง) + สถิติเฉลี่ย
+  sectionTitle_(sh, 'A24:D24', '📉 แนวโน้ม 12 เดือน');
+  var trend = [
+    {row: 25, label: 'รายรับ', bg: '#ecfdf5', fg: '#047857', f: '=SPARKLINE($B$11:$B$22,{"charttype","column";"color","#10b981"})'},
+    {row: 26, label: 'รายจ่าย', bg: '#fff1f2', fg: '#b91c1c', f: '=SPARKLINE($C$11:$C$22,{"charttype","column";"color","#ef4444"})'},
+    {row: 27, label: 'คงเหลือ', bg: COLOR_SOFT, fg: COLOR_DARK, f: '=SPARKLINE($D$11:$D$22,{"charttype","column";"color","#c9184a";"negcolor","#9ca3af"})'}
+  ];
+  trend.forEach(function (t) {
+    sh.getRange(t.row, 1).setValue(t.label).setBackground(t.bg).setFontColor(t.fg).setFontWeight('bold').setHorizontalAlignment('center');
+    sh.getRange(t.row, 2, 1, 3).merge().setFormula(t.f);
+    sh.setRowHeight(t.row, 30);
+  });
+  var stats = [
+    {row: 29, label: 'รายรับเฉลี่ย / เดือน', f: '=IFERROR(AVERAGEIF($B$11:$B$22,">0"),0)', fmt: '฿#,##0', color: '#047857'},
+    {row: 30, label: 'รายจ่ายเฉลี่ย / เดือน', f: '=IFERROR(AVERAGEIF($C$11:$C$22,">0"),0)', fmt: '฿#,##0', color: '#b91c1c'},
+    {row: 31, label: 'เดือนที่ใช้จ่ายสูงสุด', f: '=IFERROR(IF(MAX($C$11:$C$22)=0,"-",INDEX($A$11:$A$22,MATCH(MAX($C$11:$C$22),$C$11:$C$22,0))),"-")', fmt: '@', color: COLOR_DARK}
+  ];
+  stats.forEach(function (st) {
+    sh.getRange(st.row, 1, 1, 2).merge().setValue(st.label).setFontColor('#6b7280').setFontSize(10);
+    sh.getRange(st.row, 3, 1, 2).merge().setFormula(st.f).setNumberFormat(st.fmt).setFontWeight('bold').setFontColor(st.color).setHorizontalAlignment('right');
+  });
+
+  // Top 5 รายจ่ายของเดือนที่เลือก พร้อมแท่งสัดส่วน
+  sectionTitle_(sh, 'F24:H24', '🏆 Top 5 รายจ่ายเดือนนี้');
+  tableHeader_(sh.getRange('F25:H25'), ['รายการ', 'จำนวน', 'สัดส่วน'], '#334155');
+  var lastColL = colLetter_(getDataSheet_(ss).getLastColumn());
+  sh.getRange('F26').setFormula('=IFERROR(QUERY(\'' + SHEET_DATA + '\'!$A$2:$' + lastColL + ',"select ' + F.col('รายการ') + ',' + F.col('จำนวนเงิน') + ' where ' + F.col('ประเภท') + '=\'รายจ่าย\' and ' + F.col('เดือน-ปี') + '=\'"&$B$2&"\' order by ' + F.col('จำนวนเงิน') + ' desc limit 5",0),"")');
+  for (var tp = 26; tp <= 30; tp++) {
+    sh.getRange(tp, 8).setFormula('=IF(G' + tp + '="","",SPARKLINE(G' + tp + ',{"charttype","bar";"max",MAX($G$26:$G$30);"color1","#ef4444"}))');
+  }
+  sh.getRange('F26:F30').setFontWeight('bold').setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+  sh.getRange('G26:G30').setNumberFormat('#,##0').setHorizontalAlignment('right').setFontColor('#b91c1c');
+  sh.getRange('F26:H30').setBorder(null, null, true, null, null, true, '#fce7eb', SpreadsheetApp.BorderStyle.SOLID);
+
   // กราฟ
   sectionTitle_(sh, 'A33:K33', '📊 กราฟสรุป');
   var PINKS = ['#ff4d6d', '#f59e0b', '#8b5cf6', '#0ea5e9', '#10b981', '#c9184a', '#9ca3af'];
@@ -825,15 +859,15 @@ function buildPlan_(ss) {
   sh.setHiddenGridlines(true);
   ensureSize_(sh, LAST + 5, HS + nCols + 2);
   sh.getRange(1, 1, LAST + 5, 14).setFontFamily('Sarabun').setVerticalAlignment('middle');
-  var widths = [50, 135, 100, 80, 95, 220, 80, 160, 120, 330, 24, 150, 110];
+  var widths = [50, 135, 100, 80, 95, 220, 80, 160, 120, 330, 130, 150, 110];
   for (var c = 0; c < widths.length; c++) sh.setColumnWidth(c + 1, widths[c]);
 
-  sh.getRange('A1:J1').merge().setValue('🧾  ลำดับการจ่าย — จ่ายอะไรก่อน')
+  sh.getRange('A1:K1').merge().setValue('🧾  ลำดับการจ่าย — จ่ายอะไรก่อน')
     .setBackground('#f59e0b').setFontColor('#ffffff').setFontSize(20).setFontWeight('bold');
   sh.setRowHeight(1, 56);
   sh.getRange('A2').setValue('บิลที่ยังไม่จ่ายทั้งหมด เรียงตามวันครบกำหนด (ใกล้ที่สุดอยู่บนสุด)  •  จ่ายแล้วให้ทำเครื่องหมายในแอป รายการจะหายจากตารางนี้เอง')
     .setFontColor('#9ca3af').setFontSize(9);
-  sh.getRange('A3:J3').setBackground('#fff7ed');
+  sh.getRange('A3:K3').setBackground('#fff7ed');
   sh.setRowHeight(3, 8);
 
   // ข้อมูลช่วยคำนวณ (ซ่อน): บิลรายจ่ายที่ยังไม่จ่าย เรียงตามวันที่ แล้วตามจำนวนเงินมากไปน้อย
@@ -848,8 +882,8 @@ function buildPlan_(ss) {
   var thai = function (d) { return 'DAY(' + d + ')&" "&' + monthName(d) + '&" "&RIGHT(YEAR(' + d + ')+543,2)'; };
 
   // หัวตาราง
-  sectionTitle_(sh, 'A24:J24', '📋 รายการที่ต้องจ่าย');
-  tableHeader_(sh.getRange(FIRST - 1, 1, 1, 10), ['ลำดับ', 'ความเร่งด่วน', 'ครบกำหนด', 'เหลือ (วัน)', 'ธนาคาร', 'รายการ', 'คน', 'ประเภทบิล', 'ต้องจ่าย', 'รายละเอียด'], '#334155');
+  sectionTitle_(sh, 'A24:K24', '📋 รายการที่ต้องจ่าย');
+  tableHeader_(sh.getRange(FIRST - 1, 1, 1, 11), ['ลำดับ', 'ความเร่งด่วน', 'ครบกำหนด', 'เหลือ (วัน)', 'ธนาคาร', 'รายการ', 'คน', 'ประเภทบิล', 'ต้องจ่าย', 'รายละเอียด', 'เทียบยอด'], '#334155');
   sh.setRowHeight(FIRST - 1, 30);
 
   var formulas = [];
@@ -871,8 +905,9 @@ function buildPlan_(ss) {
     sh.getRange(r, 8).setFormula('=IF(' + T + '="","",' + kind + ')');
     sh.getRange(r, 9).setFormula('=IF(' + T + '="","",' + hc('จำนวนเงิน', r) + ')');
     sh.getRange(r, 10).setFormula(detail);
+    sh.getRange(r, 11).setFormula('=IF(' + T + '="","",SPARKLINE(I' + r + ',{"charttype","bar";"max",MAX($I$' + FIRST + ':$I$' + LAST + ');"color1","#f97316"}))');
   }
-  var body = sh.getRange(FIRST, 1, ROWS, 10);
+  var body = sh.getRange(FIRST, 1, ROWS, 11);
   body.setBorder(null, null, true, null, null, true, '#e5e7eb', SpreadsheetApp.BorderStyle.SOLID);
   sh.getRange(FIRST, 1, ROWS, 1).setHorizontalAlignment('center').setFontWeight('bold');
   sh.getRange(FIRST, 2, ROWS, 4).setHorizontalAlignment('center');
@@ -934,7 +969,7 @@ function buildPlan_(ss) {
     .setOption('width', 560).setOption('height', 300).setPosition(8, 6, 10, 4).build());
 
   // สีตามความเร่งด่วน / ธนาคาร / ประเภทบิล
-  var area = sh.getRange(FIRST, 1, ROWS, 10);
+  var area = sh.getRange(FIRST, 1, ROWS, 11);
   var rules = [
     SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=AND($D' + FIRST + '<>"",$D' + FIRST + '<0)').setBackground('#fee2e2').setRanges([area]).build(),
     SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=AND($D' + FIRST + '<>"",$D' + FIRST + '<=7)').setBackground('#ffedd5').setRanges([area]).build(),

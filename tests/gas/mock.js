@@ -96,7 +96,7 @@ function makeEnv(opts = {}) {
   const pad = (n) => String(n).padStart(2, '0');
   const ctx = {
     console, JSON, Math, Date, String, Number, Object, Array, isNaN, parseInt, parseFloat,
-    SpreadsheetApp: { getActiveSpreadsheet: () => ss, getUi: () => swallow({ createMenu: () => swallow({}) }), newDataValidation: builder, newConditionalFormatRule: builder, BandingTheme: enumProxy, BorderStyle: enumProxy, ProtectionType: enumProxy },
+    SpreadsheetApp: { getActiveSpreadsheet: () => ss, getUi: () => swallow({ createMenu: () => swallow({}) }), newDataValidation: builder, newConditionalFormatRule: builder, BandingTheme: enumProxy, BorderStyle: enumProxy, ProtectionType: enumProxy, WrapStrategy: enumProxy },
     ContentService: { MimeType: enumProxy, createTextOutput: (t) => ({ text: t, setMimeType() { return this; } }) },
     LockService: { getScriptLock: () => ({ waitLock() { if (opts.lockFail) throw new Error('Could not obtain lock'); }, releaseLock() {} }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props.has(k) ? props.get(k) : null), setProperty: (k, v) => props.set(k, v), deleteProperty: (k) => props.delete(k) }) },
