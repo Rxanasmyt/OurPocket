@@ -16,7 +16,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.1.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.2.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -128,6 +128,17 @@
                 <div class="flex items-center gap-2 mb-2 text-expense"><div class="bg-red-100 p-1.5 rounded-lg"><i class="ph-bold ph-trend-down text-lg"></i></div><p class="font-medium text-sm">รายจ่าย</p></div>
                 <p id="totalExpense" class="text-xl font-bold text-gray-800">฿0.00</p>
             </div>
+            <div class="col-span-2 glass-card rounded-3xl p-5 animate-scale-in" style="animation-delay: 0.3s;">
+                <div class="flex justify-between items-end mb-2">
+                    <p class="text-sm font-semibold text-gray-700">รายจ่ายเทียบรายรับเดือนนี้</p>
+                    <p id="flowPercent" class="text-sm font-bold text-gray-400">-</p>
+                </div>
+                <div class="w-full h-3 rounded-full bg-green-200 overflow-hidden"><div id="flowBar" class="h-3 rounded-full bg-expense transition-all duration-500" style="width:0%"></div></div>
+                <div class="flex justify-between text-[11px] mt-1.5">
+                    <span class="text-expense font-medium">จ่ายไป <span id="flowExp">฿0</span></span>
+                    <span id="flowLeft" class="text-income font-medium">เหลือ ฿0</span>
+                </div>
+            </div>
         </div>
 
         <!-- Stats -->
@@ -144,6 +155,14 @@
             <div>
                 <p class="text-xs font-medium text-gray-500 mb-2">รายจ่ายตามหมวด (เดือนที่เลือก)</p>
                 <div id="categoryChart" class="space-y-2"></div>
+            </div>
+            <div>
+                <p class="text-xs font-medium text-gray-500 mb-2">รายรับตามประเภท (เดือนที่เลือก)</p>
+                <div id="incCategoryChart" class="space-y-2"></div>
+            </div>
+            <div>
+                <p class="text-xs font-medium text-gray-500 mb-2">แยกตามคน (เดือนที่เลือก)</p>
+                <div id="personChart" class="space-y-3"></div>
             </div>
         </div>
 
@@ -162,6 +181,12 @@
                     <input type="text" id="searchInput" placeholder="ค้นหา..." class="w-full pl-8 pr-3 py-1.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all">
                 </div>
             </div>
+            <div class="flex gap-2 mb-2 px-1" id="viewChips">
+                <button type="button" data-view="all" onclick="window.setView('all')" class="view-chip flex-1 py-2 rounded-xl text-sm font-semibold border transition-all">ทั้งหมด</button>
+                <button type="button" data-view="income" onclick="window.setView('income')" class="view-chip flex-1 py-2 rounded-xl text-sm font-semibold border transition-all">รายรับ</button>
+                <button type="button" data-view="expense" onclick="window.setView('expense')" class="view-chip flex-1 py-2 rounded-xl text-sm font-semibold border transition-all">รายจ่าย</button>
+            </div>
+            <p id="listSummary" class="text-xs text-gray-500 px-1 mb-3"></p>
             <div id="transactionsList" class="space-y-3 pb-8"></div>
         </div>
     </div>
@@ -336,6 +361,7 @@
         let isSyncing = false;
         let currentEditId = null;
         let searchQuery = "";
+        let viewFilter = 'all';
         let pendingWrites = 0;
         let lastWriteAt = 0;
         const sendToSheets = (payload) => {
@@ -845,7 +871,22 @@
                     (t.who || "").toLowerCase().includes(searchQuery)
                 );
             }
+            if (viewFilter === 'income') monthlyData = monthlyData.filter(t => t.type === 'income');
+            if (viewFilter === 'expense') monthlyData = monthlyData.filter(t => t.type === 'expense');
             monthlyData.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            // ยอดรวมต่อวัน + สรุปรายการที่แสดง
+            const dayTotals = {};
+            let shownInc = 0, shownExp = 0;
+            monthlyData.forEach(t => {
+                const d = dayTotals[t.date] || (dayTotals[t.date] = { inc: 0, exp: 0 });
+                if (t.type === 'income') { d.inc += Number(t.netAmount) || 0; shownInc += Number(t.netAmount) || 0; }
+                else { d.exp += Number(t.amount) || 0; shownExp += Number(t.amount) || 0; }
+            });
+            let lastDate = null;
+            document.getElementById('listSummary').innerHTML = `แสดง ${monthlyData.length} รายการ` +
+                (shownInc > 0 ? ` · <span class="text-income font-semibold">รายรับ +${formatMoney(shownInc)}</span>` : '') +
+                (shownExp > 0 ? ` · <span class="text-expense font-semibold">รายจ่าย -${formatMoney(shownExp)}</span>` : '');
 
             // ยอดของเดือนที่เลือก (ไม่ขึ้นกับช่องค้นหา) และยอดสะสม
             let incTotal = 0, monthlyExpTotal = 0, cumInc = 0, cumExp = 0;
@@ -861,9 +902,17 @@
             const todayStr = localDateStr();
 
             if (monthlyData.length === 0) {
-                list.innerHTML = `<div class="text-center py-10 text-gray-400 glass-card rounded-2xl"><p>ไม่มีรายการ${searchQuery?'ที่ค้นหา':''}</p></div>`;
+                list.innerHTML = `<div class="text-center py-10 text-gray-400 glass-card rounded-2xl"><p>ไม่มี${viewFilter==='income'?'รายรับ':viewFilter==='expense'?'รายจ่าย':'รายการ'}${searchQuery?'ที่ค้นหา':''}</p></div>`;
             } else {
                 monthlyData.forEach((t, i) => {
+                    if (t.date !== lastDate) {
+                        lastDate = t.date;
+                        const day = dayTotals[t.date];
+                        const head = document.createElement('div');
+                        head.className = 'flex justify-between items-center px-1 pt-2 text-xs font-semibold text-gray-500';
+                        head.innerHTML = `<span>${formatDate(t.date)}</span><span class="font-medium">${day.inc > 0 ? `<span class="text-income">+${formatMoney(day.inc)}</span>` : ''}${day.inc > 0 && day.exp > 0 ? ' ' : ''}${day.exp > 0 ? `<span class="text-expense">-${formatMoney(day.exp)}</span>` : ''}</span>`;
+                        list.appendChild(head);
+                    }
                     const safeDesc = escapeHTML(t.description);
                     const safeCat = escapeHTML(t.category);
                     const whoBadge = t.who && t.who !== 'กองกลาง' ? `<span class="bg-blue-50 text-blue-600 px-1 rounded ml-1">${escapeHTML(t.who)}</span>` : '';
@@ -903,6 +952,7 @@
                             </div>
                         `;
                     }
+                    div.classList.add('border-l-4', t.type === 'income' ? 'border-income' : 'border-expense');
                     list.appendChild(div);
                 });
             }
@@ -911,6 +961,7 @@
             document.getElementById('totalExpense').textContent = formatMoney(expTotal);
             document.getElementById('totalBalance').textContent = formatMoney(balance);
             renderStats();
+            renderBreakdowns();
 
             // --- ระบบงบประมาณ (Budget) ---
             const currentBudget = localStorage.getItem('budget_' + currentMonthYear);
@@ -1015,6 +1066,77 @@
                         <div class="w-full bg-gray-100 rounded-full h-2"><div class="h-2 rounded-full" style="width:${pct}%;background:${CATEGORY_COLORS[idx % CATEGORY_COLORS.length]}"></div></div>
                     </div>`;
                 }).join('');
+        }
+
+        window.setView = (v) => { viewFilter = v; renderDashboard(); };
+
+        function renderBreakdowns() {
+            // ปุ่มกรอง รายรับ/รายจ่าย
+            const chipStyle = {
+                all: ['bg-gray-800', 'text-white', 'border-gray-800'],
+                income: ['bg-income', 'text-white', 'border-income'],
+                expense: ['bg-expense', 'text-white', 'border-expense']
+            };
+            document.querySelectorAll('.view-chip').forEach(btn => {
+                const v = btn.dataset.view;
+                const all = ['bg-gray-800', 'text-white', 'border-gray-800', 'bg-income', 'border-income', 'bg-expense', 'border-expense', 'bg-white', 'text-gray-500', 'border-gray-200'];
+                btn.classList.remove(...all);
+                btn.classList.add(...(v === viewFilter ? chipStyle[v] : ['bg-white', 'text-gray-500', 'border-gray-200']));
+            });
+
+            const month = allTransactions.filter(t => t.monthYear === currentMonthYear);
+            const inc = month.filter(t => t.type === 'income');
+            const exp = month.filter(t => t.type === 'expense');
+            const incTotal = inc.reduce((a, t) => a + (Number(t.netAmount) || 0), 0);
+            const expTotal = exp.reduce((a, t) => a + (Number(t.amount) || 0), 0);
+
+            // แถบรายจ่ายเทียบรายรับ
+            const pct = incTotal > 0 ? expTotal / incTotal * 100 : (expTotal > 0 ? 100 : 0);
+            const bar = document.getElementById('flowBar');
+            bar.style.width = Math.min(100, pct) + '%';
+            const pctEl = document.getElementById('flowPercent');
+            pctEl.textContent = incTotal > 0 ? `${Math.round(pct)}% ของรายรับ` : (expTotal > 0 ? 'ยังไม่มีรายรับ' : '-');
+            pctEl.className = 'text-sm font-bold ' + (pct > 100 ? 'text-expense' : pct >= 80 ? 'text-yellow-600' : 'text-income');
+            document.getElementById('flowExp').textContent = formatMoney(expTotal);
+            const left = incTotal - expTotal;
+            const leftEl = document.getElementById('flowLeft');
+            leftEl.textContent = (left >= 0 ? 'เหลือ ' : 'ติดลบ ') + formatMoney(Math.abs(left));
+            leftEl.className = (left >= 0 ? 'text-income' : 'text-expense') + ' font-medium';
+
+            // รายรับตามประเภท
+            const byInc = {};
+            inc.forEach(t => { byInc[t.category || 'อื่นๆ'] = (byInc[t.category || 'อื่นๆ'] || 0) + (Number(t.netAmount) || 0); });
+            const incEntries = Object.entries(byInc).sort((a, b) => b[1] - a[1]);
+            const GREENS = ['#059669', '#10b981', '#34d399', '#6ee7b7', '#047857', '#065f46', '#a7f3d0'];
+            document.getElementById('incCategoryChart').innerHTML = incEntries.length === 0
+                ? '<p class="text-center text-xs text-gray-400 py-3">ยังไม่มีรายรับในเดือนนี้</p>'
+                : incEntries.map(([name, val], idx) => {
+                    const p = incTotal ? Math.round(val / incTotal * 100) : 0;
+                    return `
+                    <div>
+                        <div class="flex justify-between text-xs mb-0.5"><span class="text-gray-700">${escapeHTML(name)}</span><span class="text-gray-500">${formatMoney(val)} · ${p}%</span></div>
+                        <div class="w-full bg-gray-100 rounded-full h-2"><div class="h-2 rounded-full" style="width:${p}%;background:${GREENS[idx % GREENS.length]}"></div></div>
+                    </div>`;
+                }).join('');
+
+            // แยกตามคน
+            const people = ['Anas', 'Phada'];
+            const extra = [...new Set(month.map(t => t.who).filter(w => w && !people.includes(w)))];
+            const rows = [...people, ...extra].map(name => {
+                const i = inc.filter(t => t.who === name).reduce((a, t) => a + (Number(t.netAmount) || 0), 0);
+                const e = exp.filter(t => t.who === name).reduce((a, t) => a + (Number(t.amount) || 0), 0);
+                return { name, i, e };
+            });
+            const maxP = Math.max(1, ...rows.map(r => Math.max(r.i, r.e)));
+            document.getElementById('personChart').innerHTML = rows.map(r => `
+                <div class="bg-gray-50 rounded-xl p-3">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-semibold text-sm text-gray-700">${escapeHTML(r.name)}</span>
+                        <span class="text-xs font-bold ${r.i - r.e >= 0 ? 'text-income' : 'text-expense'}">สุทธิ ${formatMoney(r.i - r.e)}</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-[11px] mb-1"><span class="w-12 text-gray-500">รายรับ</span><div class="flex-1 bg-green-100 rounded-full h-2"><div class="h-2 rounded-full bg-income" style="width:${Math.round(r.i / maxP * 100)}%"></div></div><span class="w-24 text-right text-income font-medium">${formatMoney(r.i)}</span></div>
+                    <div class="flex items-center gap-2 text-[11px]"><span class="w-12 text-gray-500">รายจ่าย</span><div class="flex-1 bg-red-100 rounded-full h-2"><div class="h-2 rounded-full bg-expense" style="width:${Math.round(r.e / maxP * 100)}%"></div></div><span class="w-24 text-right text-expense font-medium">${formatMoney(r.e)}</span></div>
+                </div>`).join('');
         }
 
         window.toggleStatus = (id) => { const i = allTransactions.find(t=>t.id===id); if(i){ i.isCompleted = !i.isCompleted; i.timestamp = Date.now(); window.saveAndSync(i); } };
