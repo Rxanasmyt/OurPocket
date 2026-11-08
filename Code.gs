@@ -4,6 +4,8 @@
 //    "สรุป"     แดชบอร์ด + กราฟ (คำนวณจากสูตร อัปเดตเองอัตโนมัติ)
 //    "รายการ"   ตารางข้อมูลรายรับ-รายจ่าย (แอปอ่าน/เขียนที่แท็บนี้)
 //    "ตั้งค่า"   งบประมาณรายเดือน
+//  ความปลอดภัย: ตั้งรหัสผ่านที่ Project Settings > Script properties > เพิ่ม WALLET_KEY = รหัสของคุณ
+//    แล้วใส่รหัสเดียวกันในแอป (ปุ่มเฟือง). ถ้าไม่ตั้ง WALLET_KEY ใครรู้ URL ก็อ่าน/เขียนข้อมูลได้
 //  วิธีสร้างแดชบอร์ดใหม่: เมนู Our Wallet > จัดรูปแบบและสร้างแดชบอร์ดใหม่
 // ============================================================
 
@@ -29,25 +31,43 @@ function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
+function walletKey_() {
+  return PropertiesService.getScriptProperties().getProperty('WALLET_KEY') || '';
+}
+
+function authorized_(key) {
+  var k = walletKey_();
+  return !k || String(key || '') === k;
+}
+
+function unauthorized_() {
+  return json_({status: "error", code: "unauthorized", message: "รหัสผ่านไม่ถูกต้อง"});
+}
+
+function syncPayload_(ss) {
+  ensureSetup_(ss);
+  var sheet = getDataSheet_(ss);
+  var values = sheet.getDataRange().getValues();
+  var data = [];
+  for (var i = 1; i < values.length; i++) {
+    var raw = values[i][COL_JSON];
+    if (raw && typeof raw === 'string' && raw.indexOf('{') === 0) {
+      try { data.push(JSON.parse(raw)); } catch (err) {}
+    }
+  }
+  return {status: "success", data: data, budgets: readBudgets_(ss)};
+}
+
 // ------------------------------------------------------------
 //  Web app endpoints
 // ------------------------------------------------------------
 function doGet(e) {
   if (e && e.parameter && e.parameter.action === 'sync') {
+    // เมื่อตั้งรหัสผ่านแล้ว ไม่ส่งข้อมูลผ่าน GET (กันรหัสหลุดใน URL) ให้แอปใช้ POST
+    if (walletKey_()) return unauthorized_();
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     if (!ss) return json_({status: "error"});
-    ensureSetup_(ss);
-
-    var sheet = getDataSheet_(ss);
-    var values = sheet.getDataRange().getValues();
-    var data = [];
-    for (var i = 1; i < values.length; i++) {
-      var raw = values[i][COL_JSON];
-      if (raw && typeof raw === 'string' && raw.indexOf('{') === 0) {
-        try { data.push(JSON.parse(raw)); } catch (err) {}
-      }
-    }
-    return json_({status: "success", data: data, budgets: readBudgets_(ss)});
+    return json_(syncPayload_(ss));
   }
   return ContentService.createTextOutput("✅ Our Wallet: Web App is running successfully!").setMimeType(ContentService.MimeType.TEXT);
 }
@@ -56,11 +76,17 @@ function doPost(e) {
   var lock = LockService.getScriptLock();
   try {
     if (!e || !e.postData) return json_({status: "error"});
-    lock.waitLock(20000);
-
     var data = JSON.parse(e.postData.contents);
+    if (!authorized_(data.key)) return unauthorized_();
+    delete data.key; // ห้ามเก็บรหัสผ่านลงชีต
+
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     if (!ss) return json_({status: "error"});
+
+    // อ่านข้อมูลทั้งหมด (ซิงค์)
+    if (data.action === 'sync') return json_(syncPayload_(ss));
+
+    lock.waitLock(20000);
     ensureSetup_(ss);
     var sheet = getDataSheet_(ss);
 
@@ -77,7 +103,7 @@ function doPost(e) {
         sheet.deleteRow(rowToDelete);
         return json_({status: "success", message: "deleted"});
       }
-      return json_({status: "error", message: "not found"});
+      return json_({status: "success", message: "already deleted"});
     }
 
     // เพิ่ม / แก้ไขรายการ
