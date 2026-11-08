@@ -15,28 +15,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <meta name="apple-mobile-web-app-title" content="Our Wallet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <script src="https://unpkg.com/@phosphor-icons/web@2.1.1" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.5.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.6.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
             window.location.reload(true);
         } else {
             localStorage.setItem('appVersion', APP_VERSION);
-        }
-
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Prompt', 'sans-serif'] },
-                    colors: { primary: '#ff4d6d', secondary: '#ffb3c1', income: '#10b981', expense: '#ef4444' },
-                    spacing: { 'safe-top': 'env(safe-area-inset-top)', 'safe-bottom': 'env(safe-area-inset-bottom)' }
-                }
-            }
         }
     </script>
     <style>
@@ -75,9 +66,18 @@
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
         }
+        /* --- ปรับสำหรับมือถือ --- */
+        html { -webkit-text-size-adjust: 100%; }
+        body { overscroll-behavior-y: none; }
+        button, a, label, input, select, summary { touch-action: manipulation; }
+        @media (pointer: coarse) { input, select, textarea { font-size: 16px !important; } } /* กัน iOS ซูมเองตอนแตะช่องกรอก */
+        .app-header { padding-top: calc(0.75rem + env(safe-area-inset-top, 0px)) !important; }
+        .pb-safe { padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important; }
+        #modalContainer > div { overscroll-behavior: contain; }
         .toggle-checkbox:checked { right: 0; border-color: #ff4d6d; }
         .toggle-checkbox:checked + .toggle-label { background-color: #ff4d6d; }
     </style>
+    <link rel="stylesheet" href="tailwind.css">
 </head>
 <body class="min-h-screen pb-20">
     <div id="loadingOverlay" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center transition-opacity duration-300">
@@ -86,25 +86,29 @@
     </div>
 
     <!-- Main Container -->
-    <div class="max-w-md mx-auto p-4 space-y-6 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(7rem+env(safe-area-inset-bottom))]">
+    <div class="max-w-md mx-auto px-4 pt-0 space-y-5 pb-[calc(7rem+env(safe-area-inset-bottom))]">
 
         <!-- Header & Month Selector -->
-        <div class="sticky top-0 z-30 -mx-4 px-4 py-3 bg-[#fff0f3]/80 backdrop-blur-xl border-b border-white/40 mb-2">
+        <div class="app-header sticky top-0 z-30 -mx-4 px-4 pb-3 bg-[#fff0f3]/90 backdrop-blur-xl border-b border-white/40">
             <header class="flex flex-col gap-3">
                 <div class="flex justify-between items-center">
-                    <h1 class="text-2xl font-bold gradient-text flex items-center gap-2">
-                        <img src="icons/icon.svg" alt="" class="w-9 h-9 rounded-[11px] shadow-md shadow-primary/30"> Our Wallet
-                    </h1>
+                    <div class="flex flex-col items-start gap-1 min-w-0">
+                        <h1 class="text-xl font-bold gradient-text flex items-center gap-2">
+                            <img src="icons/icon.svg" alt="" class="w-8 h-8 rounded-[10px] shadow-md shadow-primary/30"> Our Wallet
+                        </h1>
+                        <button type="button" id="syncStatus" onclick="window.manualSync()"></button>
+                    </div>
                     <div class="flex items-center gap-1 sm:gap-2">
-                        <button onclick="window.openModal('copyBillsModal')" class="bg-white p-2 rounded-xl text-purple-500 hover:text-purple-600 shadow-sm transition-all active:scale-95" title="คัดลอกบิลเดือนก่อน"><i class="ph-bold ph-copy text-lg"></i></button>
-                        <button onclick="window.manualSync()" id="syncBtn" class="bg-white p-2 rounded-xl text-blue-500 hover:text-blue-600 shadow-sm transition-all active:scale-95"><i class="ph-bold ph-arrows-clockwise text-lg"></i></button>
-                        <button onclick="window.openModal('debtModal')" class="bg-white p-2 rounded-xl text-orange-500 hover:text-orange-600 shadow-sm transition-all active:scale-95"><i class="ph-bold ph-credit-card text-lg"></i></button>
-                        <button onclick="window.openModal('sheetsModal')" class="bg-white p-2 rounded-xl text-gray-400 hover:text-primary shadow-sm transition-colors"><i class="ph-fill ph-gear text-lg"></i></button>
+                        <button onclick="window.openModal('copyBillsModal')" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-purple-500 hover:text-purple-600 shadow-sm transition-all active:scale-95" title="คัดลอกบิลเดือนก่อน"><i class="ph-bold ph-copy text-lg"></i></button>
+                        <button onclick="window.manualSync()" id="syncBtn" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-blue-500 hover:text-blue-600 shadow-sm transition-all active:scale-95"><i class="ph-bold ph-arrows-clockwise text-lg"></i></button>
+                        <button onclick="window.openModal('debtModal')" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-orange-500 hover:text-orange-600 shadow-sm transition-all active:scale-95"><i class="ph-bold ph-credit-card text-lg"></i></button>
+                        <button onclick="window.openModal('sheetsModal')" class="bg-white w-10 h-10 flex items-center justify-center rounded-xl text-gray-400 hover:text-primary shadow-sm transition-colors"><i class="ph-fill ph-gear text-lg"></i></button>
                     </div>
                 </div>
                 <div class="flex justify-between items-center gap-2">
-                    <input type="month" id="monthSelector" class="glass-card px-3 py-1.5 rounded-xl text-sm font-medium text-gray-700 outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer shadow-sm flex-1 min-w-0">
-                    <button type="button" id="syncStatus" onclick="window.manualSync()"></button>
+                    <button type="button" onclick="window.shiftMonth(-1)" aria-label="เดือนก่อนหน้า" class="shrink-0 w-10 h-10 bg-white rounded-xl shadow-sm text-gray-500 flex items-center justify-center"><i class="ph-bold ph-caret-left"></i></button>
+                    <input type="month" id="monthSelector" class="glass-card h-10 px-3 rounded-xl text-sm font-semibold text-gray-700 text-center outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer shadow-sm flex-1 min-w-0">
+                    <button type="button" onclick="window.shiftMonth(1)" aria-label="เดือนถัดไป" class="shrink-0 w-10 h-10 bg-white rounded-xl shadow-sm text-gray-500 flex items-center justify-center"><i class="ph-bold ph-caret-right"></i></button>
                 </div>
             </header>
         </div>
@@ -162,8 +166,12 @@
         </div>
 
         <!-- Stats -->
-        <div id="statsSection" class="glass-card rounded-3xl p-5 space-y-5">
-            <h3 class="font-bold text-gray-700 flex items-center gap-2"><i class="ph-fill ph-chart-bar text-primary"></i> สรุปกราฟ</h3>
+        <div id="statsSection" class="glass-card rounded-3xl p-5">
+            <button type="button" onclick="window.toggleStats()" class="w-full flex items-center justify-between font-bold text-gray-700">
+                <span class="flex items-center gap-2"><i class="ph-fill ph-chart-bar text-primary"></i> สรุปกราฟ</span>
+                <i id="statsChevron" class="ph-bold ph-caret-down text-gray-400 transition-transform duration-300"></i>
+            </button>
+            <div id="statsBody" class="hidden space-y-5 mt-4">
             <div>
                 <p class="text-xs font-medium text-gray-500 mb-2">รายรับ-รายจ่าย 6 เดือนล่าสุด</p>
                 <div id="trendChart" class="flex items-end justify-between gap-2 h-36"></div>
@@ -183,6 +191,7 @@
             <div>
                 <p class="text-xs font-medium text-gray-500 mb-2">แยกตามคน (เดือนที่เลือก)</p>
                 <div id="personChart" class="space-y-3"></div>
+            </div>
             </div>
         </div>
 
@@ -212,7 +221,7 @@
     </div>
 
     <!-- Floating Action Buttons -->
-    <div class="fixed bottom-6 pb-safe left-1/2 -translate-x-1/2 flex gap-4 w-full max-w-sm px-6 z-40">
+    <div class="fixed left-1/2 -translate-x-1/2 flex gap-3 w-full max-w-sm px-4 z-40" style="bottom: calc(1rem + env(safe-area-inset-bottom, 0px))">
         <button onclick="window.openModal('incomeModal')" class="flex-1 bg-income hover:bg-green-600 text-white py-4 rounded-2xl shadow-[0_8px_16px_rgba(16,185,129,0.3)] font-semibold transition-all active:scale-95 flex items-center justify-center gap-2"><i class="ph-bold ph-plus-circle text-2xl"></i> รับเงิน</button>
         <button onclick="window.openModal('expenseModal')" class="flex-1 bg-expense hover:bg-red-600 text-white py-4 rounded-2xl shadow-[0_8px_16px_rgba(239,68,68,0.3)] font-semibold transition-all active:scale-95 flex items-center justify-center gap-2"><i class="ph-bold ph-minus-circle text-2xl"></i> จ่ายเงิน</button>
     </div>
@@ -227,12 +236,12 @@
                 <button onclick="window.closeModal()"><i class="ph-bold ph-x"></i></button>
             </div>
             <p class="text-sm text-gray-500 mb-4">กำหนดเป้าหมายว่าเดือนนี้เราจะใช้เงินรวมกันไม่เกินกี่บาท เพื่อควบคุมการใช้จ่ายครับ</p>
-            <input type="number" id="budgetInput" placeholder="จำนวนเงิน (บาท)" class="w-full px-4 py-3 rounded-xl border border-gray-200 mb-4 text-lg font-bold text-center">
+            <input type="number" inputmode="decimal" id="budgetInput" placeholder="จำนวนเงิน (บาท)" class="w-full px-4 py-3 rounded-xl border border-gray-200 mb-4 text-lg font-bold text-center">
             <button onclick="window.saveBudget()" class="w-full py-3.5 rounded-xl font-medium text-white bg-primary shadow-lg shadow-primary/30">บันทึกงบประมาณ</button>
         </div>
 
         <!-- Copy Bills Modal -->
-        <div id="copyBillsModal" class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal overflow-hidden max-h-[90vh] mt-auto sm:mt-0">
+        <div id="copyBillsModal" class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal overflow-hidden max-h-[90dvh] mt-auto sm:mt-0">
             <div class="bg-purple-50 px-6 py-4 flex justify-between items-center border-b border-purple-100">
                 <h3 class="font-bold text-lg text-purple-700 flex items-center gap-2"><i class="ph-fill ph-copy"></i> เลือกคัดลอกบิลประจำ</h3>
                 <button onclick="window.closeModal()" class="text-gray-400 text-xl"><i class="ph-bold ph-x"></i></button>
@@ -247,7 +256,7 @@
         </div>
 
         <!-- Income Modal -->
-        <div id="incomeModal" class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal overflow-hidden max-h-[90vh] mt-auto sm:mt-0">
+        <div id="incomeModal" class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal overflow-hidden max-h-[90dvh] mt-auto sm:mt-0">
             <div class="bg-green-50 px-6 py-4 flex justify-between items-center border-b border-green-100">
                 <h3 id="incModalTitle" class="font-bold text-lg text-green-700 flex items-center gap-2"><i class="ph-fill ph-plus-circle"></i> เพิ่มรายรับ</h3>
                 <button onclick="window.closeModal()" class="text-gray-400 text-xl"><i class="ph-bold ph-x"></i></button>
@@ -269,8 +278,8 @@
                             <option value="เงินเดือน">เงินเดือน</option><option value="ค่าเสี่ยงภัย">ค่าเสี่ยงภัย</option><option value="ค่า พตส">ค่า พตส</option><option value="ค่าเวร">ค่าเวร</option><option value="ค่าใบประกอบ">ค่าใบประกอบ</option><option value="ค่า ฉ.10">ค่า ฉ.10</option><option value="ค่า ฉ.11">ค่า ฉ.11</option><option value="ค่าเงินประจำตำแหน่ง">ค่าเงินประจำตำแหน่ง</option>
                         </select>
                     </div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label><input type="text" id="incDesc" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200"></div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label><input type="number" id="incAmount" required step="0.01" min="0" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label><input type="text" id="incDesc" list="incDescList" autocomplete="off" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label><input type="number" inputmode="decimal" id="incAmount" required step="0.01" min="0" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold"></div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">หัก ณ ที่จ่าย</label>
                         <select id="incTaxRate" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm">
@@ -280,13 +289,13 @@
                     <div class="bg-green-50/50 p-4 rounded-xl border border-green-100 flex justify-between items-center">
                         <span class="text-sm text-gray-600 font-medium">ยอดรับสุทธิ:</span><span id="incNetAmountDisplay" class="text-xl font-bold text-green-600">฿0.00</span>
                     </div>
-                    <button type="submit" id="incSubmitBtn" class="w-full py-3.5 rounded-xl font-medium text-white bg-green-500 hover:bg-green-600 shadow-lg shadow-green-200">บันทึกรายรับ</button>
+                    <button type="submit" id="incSubmitBtn" class="sticky bottom-0 w-full py-3.5 rounded-xl font-medium text-white bg-green-500 hover:bg-green-600 shadow-lg shadow-green-200">บันทึกรายรับ</button>
                 </form>
             </div>
         </div>
 
         <!-- Expense Modal -->
-        <div id="expenseModal" class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal overflow-hidden max-h-[90vh] mt-auto sm:mt-0">
+        <div id="expenseModal" class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal overflow-hidden max-h-[90dvh] mt-auto sm:mt-0">
             <div class="bg-red-50 px-6 py-4 flex justify-between items-center border-b border-red-100">
                 <h3 id="expModalTitle" class="font-bold text-lg text-red-700 flex items-center gap-2"><i class="ph-fill ph-minus-circle"></i> เพิ่มรายจ่าย</h3>
                 <button onclick="window.closeModal()" class="text-gray-400 text-xl"><i class="ph-bold ph-x"></i></button>
@@ -308,7 +317,7 @@
                             </select>
                         </div>
                     </div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียดรายการ</label><input type="text" id="expDesc" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียดรายการ</label><input type="text" id="expDesc" list="expDescList" autocomplete="off" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200"></div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">ช่องทางจ่าย</label>
                         <select id="expBank" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white">
@@ -326,33 +335,33 @@
                     </div>
                     <div id="expMinBox" class="hidden space-y-2 p-3 bg-orange-50/60 rounded-xl border border-orange-100">
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดเต็มตามบิล</label><input type="number" id="expFullAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 20000"></div>
-                            <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดขั้นต่ำ</label><input type="number" id="expMinAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 1000"></div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดเต็มตามบิล</label><input type="number" inputmode="decimal" id="expFullAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 20000"></div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดขั้นต่ำ</label><input type="number" inputmode="decimal" id="expMinAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 1000"></div>
                         </div>
                         <p id="expMinHint" class="text-xs text-orange-700"></p>
                     </div>
                     <div id="expInstallBox" class="hidden space-y-2 p-3 bg-orange-50/60 rounded-xl border border-orange-100">
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-sm font-medium text-gray-700 mb-1">งวดที่</label><input type="number" id="expCurInstall" min="1" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 1"></div>
-                            <div><label class="block text-sm font-medium text-gray-700 mb-1">จากทั้งหมด</label><input type="number" id="expTotalInstall" min="1" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 10"></div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">งวดที่</label><input type="number" inputmode="numeric" id="expCurInstall" min="1" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 1"></div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">จากทั้งหมด</label><input type="number" inputmode="numeric" id="expTotalInstall" min="1" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 10"></div>
                         </div>
-                        <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดผ่อนต่องวด (บาท)</label><input type="number" id="expInstallAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 1500"></div>
+                        <div><label class="block text-sm font-medium text-gray-700 mb-1">ยอดผ่อนต่องวด (บาท)</label><input type="number" inputmode="decimal" id="expInstallAmount" min="0" step="0.01" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white" placeholder="เช่น 1500"></div>
                         <p class="text-xs text-orange-700">จ่ายน้อยกว่ายอดต่องวดไม่ได้</p>
                     </div>
-                    <div><label id="expAmountLabel" class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label><input type="number" id="expAmount" required step="0.01" min="0" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold"></div>
+                    <div><label id="expAmountLabel" class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label><input type="number" inputmode="decimal" id="expAmount" required step="0.01" min="0" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold"></div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">วันกำหนดจ่าย</label><input type="date" id="expDueDate" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200"></div>
 
                     <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                         <input type="checkbox" id="expCompleted" class="w-5 h-5 text-red-600 rounded">
                         <label for="expCompleted" class="text-sm font-medium text-gray-700">จ่ายแล้วเรียบร้อย</label>
                     </div>
-                    <button type="submit" id="expSubmitBtn" class="w-full py-3.5 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200">บันทึกรายจ่าย</button>
+                    <button type="submit" id="expSubmitBtn" class="sticky bottom-0 w-full py-3.5 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200">บันทึกรายจ่าย</button>
                 </form>
             </div>
         </div>
 
         <!-- Debt/Installment Tracker Modal -->
-        <div id="debtModal" class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal overflow-hidden max-h-[90vh] mt-auto sm:mt-0">
+        <div id="debtModal" class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md hidden flex-col animate-modal overflow-hidden max-h-[90dvh] mt-auto sm:mt-0">
             <div class="bg-orange-50 px-6 py-4 flex justify-between items-center border-b border-orange-100">
                 <h3 class="font-bold text-lg text-orange-700 flex items-center gap-2"><i class="ph-fill ph-credit-card"></i> สรุปหนี้ & ค่าผ่อน</h3>
                 <button onclick="window.closeModal()" class="text-gray-400 text-xl"><i class="ph-bold ph-x"></i></button>
@@ -374,6 +383,9 @@
         </div>
     </div>
 
+    <datalist id="incDescList"></datalist>
+    <datalist id="expDescList"></datalist>
+
     <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex flex-col gap-2 w-full max-w-sm px-4"></div>
 
     <script type="module">
@@ -385,6 +397,7 @@
         let searchQuery = "";
         let viewFilter = 'all';
         let animateNext = true;      // เล่นแอนิเมชันเข้าเฉพาะตอนเปิดแอป/เปลี่ยนเดือน/เปลี่ยนมุมมอง
+        let remindersExpanded = false;
         let highlightId = null;      // รายการที่เพิ่งบันทึก เล่นแอนิเมชันเฉพาะรายการนั้น
         // --- คิวส่งข้อมูลไป Google Sheets (เก็บในเครื่อง ส่งซ้ำเองจนสำเร็จ) ---
         let syncQueue = [];
@@ -455,7 +468,7 @@
                 color = 'bg-green-100 text-green-700'; icon = 'ph-check-circle';
                 text = lastSyncAt ? 'ซิงค์แล้ว ' + new Date(lastSyncAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : 'เชื่อมต่อแล้ว';
             }
-            el.className = `shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold whitespace-nowrap ${color}`;
+            el.className = `shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold whitespace-nowrap ${color}`;
             el.innerHTML = `<i class="ph-bold ${icon}"></i><span>${text}</span>`;
         }
 
@@ -472,6 +485,12 @@
             currentMonthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
             document.getElementById('monthSelector').value = currentMonthYear;
 
+            try {
+                if (localStorage.getItem('statsOpen') === '1') {
+                    document.getElementById('statsBody').classList.remove('hidden');
+                    document.getElementById('statsChevron').style.transform = 'rotate(180deg)';
+                }
+            } catch (e) {}
             const carryForward = localStorage.getItem('carryForward') === 'true';
             document.getElementById('carryForwardToggle').checked = carryForward;
 
@@ -493,6 +512,12 @@
 
         function setupListeners() {
             document.getElementById('monthSelector').addEventListener('change', (e) => { currentMonthYear = e.target.value; animateNext = true; renderDashboard(); });
+            document.getElementById('expDesc').addEventListener('change', (e) => prefillFromHistory('expense', e.target.value));
+            document.getElementById('incDesc').addEventListener('change', (e) => prefillFromHistory('income', e.target.value));
+            // แตะพื้นหลัง/กด Esc เพื่อปิดหน้าต่างที่ไม่ใช่ฟอร์มกรอกข้อมูล (กันข้อมูลที่กำลังพิมพ์หาย)
+            const closeable = () => ['debtModal', 'copyBillsModal', 'budgetModal', 'sheetsModal'].some(id => document.getElementById(id).classList.contains('flex'));
+            document.getElementById('modalContainer').addEventListener('click', (e) => { if (e.target.id === 'modalContainer' && closeable()) window.closeModal(); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && closeable()) window.closeModal(); });
             document.getElementById('searchInput').addEventListener('input', (e) => { searchQuery = e.target.value.trim().toLowerCase(); renderDashboard(); });
 
             document.getElementById('carryForwardToggle').addEventListener('change', (e) => {
@@ -1045,35 +1070,35 @@
                     if (t.type === 'income') {
                         const taxBadge = t.taxRate > 0 ? `<span class="text-yellow-600 bg-yellow-50 px-1 rounded text-xs ml-1">หัก ${t.taxRate}%</span>` : '';
                         div.innerHTML = `
-                            <div class="flex items-center gap-3">
-                                <div class="bg-green-100 text-green-600 w-10 h-10 rounded-full flex items-center justify-center shrink-0"><i class="ph-bold ph-arrow-down-left text-xl"></i></div>
-                                <div><p class="font-medium text-gray-800">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500">${safeCat} • ${formatDate(t.date)} ${taxBadge}</p></div>
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="bg-green-100 text-green-600 w-10 h-10 rounded-full hidden min-[420px]:flex items-center justify-center shrink-0"><i class="ph-bold ph-arrow-down-left text-xl"></i></div>
+                                <div class="min-w-0"><p class="font-medium text-gray-800 break-words">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500">${safeCat} • ${formatDate(t.date)} ${taxBadge}</p></div>
                             </div>
-                            <div class="text-right flex items-center gap-1">
+                            <div class="text-right flex items-center shrink-0">
                                 <div><p class="font-bold text-green-600 mr-2">+${formatMoney(t.netAmount)}</p></div>
-                                <button onclick="window.editItem('${t.id}')" class="text-gray-300 hover:text-blue-500 p-1"><i class="ph-fill ph-pencil-simple text-lg"></i></button>
-                                <button onclick="window.deleteItem('${t.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="ph-fill ph-trash text-lg"></i></button>
+                                <button onclick="window.editItem('${t.id}')" class="text-gray-300 hover:text-blue-500 w-9 h-10 flex items-center justify-center"><i class="ph-fill ph-pencil-simple text-lg"></i></button>
+                                <button onclick="window.deleteItem('${t.id}')" class="text-gray-300 hover:text-red-500 w-9 h-10 flex items-center justify-center"><i class="ph-fill ph-trash text-lg"></i></button>
                             </div>
                         `;
                     } else {
                         const installBadge = (t.currentInstallment && t.totalInstallments) ? `<span class="bg-gray-100 px-1 rounded ml-1 text-xs">งวด ${t.currentInstallment}/${t.totalInstallments}</span>` : '';
                         const minBadge = t.payMode === 'minpay' ? `<span class="bg-orange-50 text-orange-600 px-1 rounded ml-1 text-xs">ขั้นต่ำ · ค้าง ${formatMoney(t.remainingAmount || 0)}</span>` : '';
                         div.innerHTML = `
-                            <div class="flex items-center gap-3">
-                                <div class="bg-red-100 text-red-600 w-10 h-10 rounded-full flex items-center justify-center shrink-0"><i class="ph-bold ph-arrow-up-right text-xl"></i></div>
-                                <div><p class="font-medium text-gray-800">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500">${safeCat} • ${formatDate(t.date)} ${installBadge}${minBadge}</p></div>
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="bg-red-100 text-red-600 w-10 h-10 rounded-full hidden min-[420px]:flex items-center justify-center shrink-0"><i class="ph-bold ph-arrow-up-right text-xl"></i></div>
+                                <div class="min-w-0"><p class="font-medium text-gray-800 break-words">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500">${safeCat} • ${formatDate(t.date)} ${installBadge}${minBadge}</p></div>
                             </div>
-                            <div class="text-right flex items-center gap-1">
+                            <div class="text-right flex items-center shrink-0">
                                 <div class="flex flex-col items-end mr-2">
                                     <p class="font-bold text-red-600">-${formatMoney(t.amount)}</p>
                                     <button onclick="window.toggleStatus('${t.id}')" class="text-xs flex items-center gap-1 ${t.isCompleted ? 'text-green-600' : 'text-orange-500'}"><i class="ph-fill ${t.isCompleted ? 'ph-check-circle' : 'ph-clock'}"></i> ${t.isCompleted ? 'จ่ายแล้ว' : 'รอจ่าย'}</button>
                                 </div>
-                                <button onclick="window.editItem('${t.id}')" class="text-gray-300 hover:text-blue-500 p-1"><i class="ph-fill ph-pencil-simple text-lg"></i></button>
-                                <button onclick="window.deleteItem('${t.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="ph-fill ph-trash text-lg"></i></button>
+                                <button onclick="window.editItem('${t.id}')" class="text-gray-300 hover:text-blue-500 w-9 h-10 flex items-center justify-center"><i class="ph-fill ph-pencil-simple text-lg"></i></button>
+                                <button onclick="window.deleteItem('${t.id}')" class="text-gray-300 hover:text-red-500 w-9 h-10 flex items-center justify-center"><i class="ph-fill ph-trash text-lg"></i></button>
                             </div>
                         `;
                     }
-                    div.classList.add('border-l-4', t.type === 'income' ? 'border-income' : 'border-expense');
+                    div.classList.add('border-l-4', t.type === 'income' ? 'border-l-income' : 'border-l-expense');
                     list.appendChild(div);
                 });
             }
@@ -1082,6 +1107,7 @@
             tweenNumber(document.getElementById('totalExpense'), expTotal);
             tweenNumber(document.getElementById('totalBalance'), balance);
             renderStats(anim);
+            updateSuggestions();
             renderBreakdowns(anim);
             highlightId = null;
 
@@ -1119,7 +1145,8 @@
 
             if (pendingBills.length > 0) {
                 document.getElementById('remindersSection').classList.remove('hidden');
-                remList.innerHTML = pendingBills.map(t => {
+                const shownBills = remindersExpanded ? pendingBills : pendingBills.slice(0, 3);
+                remList.innerHTML = shownBills.map(t => {
                     const isOverdue = t.date < todayStr;
                     return `
                     <div class="bg-white border-l-4 ${isOverdue ? 'border-red-600 bg-red-50' : 'border-orange-400'} rounded-r-xl p-3 flex justify-between items-center shadow-sm relative overflow-hidden">
@@ -1137,7 +1164,7 @@
                             <button onclick="window.toggleStatus('${t.id}')" class="text-xs ${isOverdue ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-500 hover:bg-orange-600'} text-white px-3 py-1.5 rounded-lg active:scale-95 transition-all">กดจ่ายบิลนี้</button>
                         </div>
                     </div>`
-                }).join('');
+                }).join('') + (pendingBills.length > 3 ? `<button type="button" onclick="window.toggleReminders()" class="w-full py-2.5 rounded-xl bg-white text-sm font-semibold text-orange-600 border border-orange-200">${remindersExpanded ? 'ซ่อนบางรายการ' : 'ดูอีก ' + (pendingBills.length - 3) + ' รายการ'}</button>` : '');
             } else {
                 document.getElementById('remindersSection').classList.add('hidden');
             }
@@ -1204,6 +1231,60 @@
                 if (k < 1) el._raf = requestAnimationFrame(step);
             };
             el._raf = requestAnimationFrame(step);
+        }
+
+        window.shiftMonth = (delta) => {
+            const [y, m] = currentMonthYear.split('-').map(Number);
+            const d = new Date(y, m - 1 + delta, 1);
+            currentMonthYear = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            document.getElementById('monthSelector').value = currentMonthYear;
+            animateNext = true;
+            renderDashboard();
+        };
+
+        window.toggleStats = () => {
+            const open = document.getElementById('statsBody').classList.toggle('hidden') === false;
+            document.getElementById('statsChevron').style.transform = open ? 'rotate(180deg)' : '';
+            try { localStorage.setItem('statsOpen', open ? '1' : '0'); } catch (e) {}
+        };
+
+        window.toggleReminders = () => { remindersExpanded = !remindersExpanded; renderDashboard(); };
+
+        // รายการที่เคยกรอก: แนะนำชื่อ และเติมหมวด/คน/ช่องทาง/จำนวนล่าสุดให้เมื่อเลือกชื่อเดิม
+        function updateSuggestions() {
+            const build = (type) => {
+                const seen = new Set(), out = [];
+                [...allTransactions].filter(t => t.type === type).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).forEach(t => {
+                    const d = (t.description || '').trim();
+                    if (d && !seen.has(d.toLowerCase()) && out.length < 40) { seen.add(d.toLowerCase()); out.push(d); }
+                });
+                return out.map(d => `<option value="${escapeHTML(d)}"></option>`).join('');
+            };
+            document.getElementById('incDescList').innerHTML = build('income');
+            document.getElementById('expDescList').innerHTML = build('expense');
+        }
+
+        function prefillFromHistory(type, desc) {
+            if (currentEditId || !desc) return;
+            const key = desc.trim().toLowerCase();
+            const hist = allTransactions.filter(t => t.type === type && (t.description || '').trim().toLowerCase() === key)
+                .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
+            if (!hist) return;
+            if (type === 'expense') {
+                if (document.getElementById('expAmount').value) return;
+                setSelect('expCategory', hist.category);
+                setSelect('expWho', hist.who || 'Anas');
+                setSelect('expBank', hist.bank || 'เงินสด');
+                if (!hist.payMode || hist.payMode === 'normal') document.getElementById('expAmount').value = hist.amount;
+                updateExpenseHints();
+            } else {
+                if (document.getElementById('incAmount').value) return;
+                setSelect('incCategory', hist.category);
+                setSelect('incWho', hist.who || 'Anas');
+                setSelect('incTaxRate', String(hist.taxRate || 0), 'หัก ' + (hist.taxRate || 0) + '%');
+                document.getElementById('incAmount').value = hist.amount;
+                document.getElementById('incAmount').dispatchEvent(new Event('input'));
+            }
         }
 
         window.setView = (v) => { viewFilter = v; animateNext = true; renderDashboard(); };
@@ -1286,6 +1367,7 @@
         };
 
         window.showToast = (msg, type='success') => {
+            if (type === 'success' && navigator.vibrate) navigator.vibrate(12);
             const c = document.getElementById('toast-container'); const t = document.createElement('div');
             t.className = `flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium toast-enter toast-enter-active ${type==='success'?'bg-gray-800 text-white':'bg-red-500 text-white'}`;
             t.innerHTML = `<i class="ph-bold ${type==='success'?'ph-check-circle text-green-400':'ph-warning-circle'} text-lg"></i> ${msg}`;
@@ -1293,6 +1375,10 @@
         };
 
         init();
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+        }
     </script>
 </body>
 </html>

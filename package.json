@@ -1,0 +1,11 @@
+{
+  "name": "our-wallet",
+  "private": true,
+  "description": "Our Wallet - static web app. Run `npm run build:css` after changing Tailwind classes in index.html.",
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}
