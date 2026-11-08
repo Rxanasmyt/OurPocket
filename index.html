@@ -22,7 +22,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.13.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.14.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -213,6 +213,62 @@
         @keyframes emptyFloat { 50% { transform: translateY(-6px); } }
         #syncStatus { transition: background-color 0.3s ease, color 0.3s ease; }
         @media (hover: hover) { .row-card:hover { box-shadow: 0 12px 26px -14px rgba(201, 24, 74, 0.3); } }
+        /* ===== ไอคอนมีชีวิต: หมุน/เอียง/เด้งตามปุ่ม ===== */
+        button i { display: inline-block; transition: transform 0.5s var(--spring); }
+        #syncBtn:active i { transform: rotate(180deg); }
+        button[onclick*="sheetsModal"]:active i { transform: rotate(90deg); }
+        button[onclick*="debtModal"]:active i { transform: rotate(-14deg) scale(1.1); }
+        button[onclick*="copyBillsModal"]:active i { transform: scale(1.2); }
+        .fab-btn:active i { transform: rotate(90deg) scale(1.15); }
+        @media (hover: hover) { .fab-btn:hover i { transform: rotate(90deg); } button[onclick*="sheetsModal"]:hover i { transform: rotate(60deg); } }
+        @keyframes logoSpin { to { transform: rotate(360deg) scale(1); } }
+        .logo-spin { animation: logoSpin 0.9s var(--spring); }
+        @keyframes badgePop { from { opacity: 0; transform: scale(0.4) rotate(-12deg); } }
+        [data-pay-id] > :first-child { animation: badgePop 0.6s var(--spring) backwards; }
+        @keyframes pillPop { 0% { transform: scale(0.88); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+        .pill-pop { animation: pillPop 0.5s var(--spring); }
+        /* ===== ตัวเลือก: ชิปมีเครื่องหมายถูก / สวิตช์ / ช่องติ๊ก ===== */
+        @keyframes chipPop { 0% { transform: scale(0.92); } 55% { transform: scale(1.09); } 100% { transform: scale(1.04); } }
+        @keyframes chipCheck { from { opacity: 0; transform: scale(0) rotate(-40deg); max-width: 0; } to { opacity: 1; transform: none; max-width: 1rem; } }
+        .chip.active { animation: chipPop 0.5s var(--spring); }
+        .chip.active::before { content: "✓"; font-size: 0.72rem; font-weight: 800; overflow: hidden; animation: chipCheck 0.4s var(--ease-emph) backwards; }
+        .switch { position: relative; display: inline-block; width: 42px; height: 24px; margin-right: 0.5rem; vertical-align: middle; }
+        .switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 2; }
+        .switch-track { position: absolute; inset: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.38); transition: background-color 0.3s var(--ease-standard), box-shadow 0.3s ease; }
+        .switch-thumb { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 999px; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28); transition: transform 0.5s var(--spring), width 0.18s ease; }
+        .switch input:checked + .switch-track { background: #10b981; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.22); }
+        .switch input:checked + .switch-track .switch-thumb { transform: translateX(18px); }
+        .switch input:active + .switch-track .switch-thumb { width: 24px; }
+        .switch input:checked:active + .switch-track .switch-thumb { transform: translateX(12px); }
+        input.cbx { appearance: none; -webkit-appearance: none; width: 22px; height: 22px; border-radius: 7px; border: 2px solid #d1d5db; background: #fff; position: relative; flex-shrink: 0; cursor: pointer; transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.4s var(--spring); }
+        input.cbx::after { content: ""; position: absolute; left: 6px; top: 2px; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg) scale(0); transition: transform 0.35s var(--spring); }
+        input.cbx:checked { background: #10b981; border-color: #10b981; }
+        input.cbx:checked::after { transform: rotate(45deg) scale(1); }
+        input.cbx:active { transform: scale(0.88); }
+        /* ===== พื้นหลัง: วงแหวนบางๆ ลอยขึ้นเมื่อเลื่อนหน้า (เบราว์เซอร์ที่รองรับ) ===== */
+        body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+            background: radial-gradient(circle at 12% 18%, transparent 0 46px, rgba(255, 77, 109, 0.12) 47px 48px, transparent 49px), radial-gradient(circle at 90% 40%, transparent 0 74px, rgba(201, 24, 74, 0.09) 75px 76px, transparent 77px), radial-gradient(circle at 18% 76%, transparent 0 34px, rgba(255, 77, 109, 0.09) 35px 36px, transparent 37px), radial-gradient(circle at 84% 88%, transparent 0 52px, rgba(255, 77, 109, 0.08) 53px 54px, transparent 55px); }
+        @keyframes bgParallax { from { transform: translateY(0); } to { transform: translateY(-180px); } }
+        @supports (animation-timeline: scroll()) { body::after { animation: bgParallax linear both; animation-timeline: scroll(root); } }
+        /* ===== กราฟิกแดชบอร์ด: วงแหวนสัดส่วน / โดนัท / เส้นเวลาบิล ===== */
+        .ring-track { stroke: #bbf7d0; }
+        .ring-bar { transition: stroke-dashoffset 1s var(--ease-emph), stroke 0.4s ease; }
+        .donut-seg { animation: donutIn 1s var(--ease-emph) backwards; }
+        @keyframes donutIn { from { stroke-dasharray: 0 400; } }
+        .trend-col { cursor: pointer; transition: opacity 0.25s ease, transform 0.4s var(--spring); }
+        .trend-col:active { transform: scale(0.94); }
+        .trend-dim .trend-col:not(.trend-on) { opacity: 0.45; }
+        .timeline { position: relative; height: 54px; margin: 0.25rem 0.5rem 0.9rem; }
+        .timeline-track { position: absolute; left: 0; right: 0; top: 26px; height: 6px; border-radius: 6px; background: linear-gradient(90deg, #fecaca 0%, #fed7aa 25%, #bae6fd 60%, #e5e7eb 100%); }
+        .timeline-tick { position: absolute; top: 38px; transform: translateX(-50%); font-size: 9px; color: #9ca3af; font-weight: 600; white-space: nowrap; }
+        .timeline-dot { position: absolute; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 3px 8px -2px rgba(0,0,0,0.35); animation: dotPop 0.6s var(--spring) backwards; }
+        @keyframes dotPop { from { transform: scale(0) translateY(10px); opacity: 0; } }
+        .timeline-now { position: absolute; left: 0; top: 14px; width: 2px; height: 30px; background: #ff4d6d; border-radius: 2px; }
+        /* ===== ซ่อนตัวเลขเงิน (โหมดส่วนตัว) ===== */
+        .money { transition: filter 0.4s var(--ease-emph); }
+        .privacy .money { filter: blur(9px); }
+        @keyframes wiggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-6deg); } 40% { transform: rotate(6deg); } 60% { transform: rotate(-4deg); } 80% { transform: rotate(3deg); } }
+        .wiggle { animation: wiggle 0.7s var(--ease-standard); display: inline-block; }
         .submit-sticky { box-shadow: 0 -20px 16px 4px #fff !important; }
         /* --- ปรับสำหรับมือถือ --- */
         html { -webkit-text-size-adjust: 100%; }
@@ -245,7 +301,7 @@
                 <div class="flex justify-between items-center">
                     <div class="flex flex-col items-start gap-1 min-w-0">
                         <h1 class="text-xl font-bold gradient-text flex items-center gap-2">
-                            <img src="icons/icon.svg" alt="" class="w-8 h-8 rounded-[10px] shadow-md shadow-primary/30"> Our Wallet
+                            <img id="appLogo" src="icons/icon.svg" alt="" onclick="window.spinLogo()" class="w-8 h-8 rounded-[10px] shadow-md shadow-primary/30 cursor-pointer"> Our Wallet
                         </h1>
                         <button type="button" id="syncStatus" onclick="window.openSyncStatus()"></button>
                     </div>
@@ -268,18 +324,16 @@
         <div class="grid grid-cols-2 gap-4">
             <div class="hero-aurora col-span-2 glass-card rounded-3xl p-6 text-center bg-gradient-to-br from-primary to-[#c9184a] text-white shadow-lg shadow-primary/30 relative overflow-hidden reveal">
                 <div class="absolute -right-6 -top-6 text-white/10 text-8xl floating-icon"><i class="ph-fill ph-coins"></i></div>
+                <button type="button" id="privacyBtn" onclick="window.togglePrivacy()" aria-label="ซ่อน/แสดงตัวเลข" title="ซ่อน/แสดงตัวเลข" class="absolute left-3 top-3 z-20 w-9 h-9 rounded-full bg-white/15 text-white flex items-center justify-center"><i class="ph-bold ph-eye text-lg"></i></button>
                 <div class="flex justify-center items-center gap-2 mb-1 relative z-10">
                     <p class="text-white/80 font-medium text-sm">ยอดเงินคงเหลือ</p>
                 </div>
-                <h2 id="totalBalance" class="text-4xl font-bold tracking-tight relative z-10 mb-3">฿0.00</h2>
+                <h2 id="totalBalance" class="money text-4xl font-bold tracking-tight relative z-10 mb-3">฿0.00</h2>
 
                 <!-- Toggle ยอดยกมา -->
                 <div class="relative z-10 flex items-center justify-center gap-2 bg-black/10 rounded-full py-1.5 px-3 w-max mx-auto mb-4">
                     <span class="text-xs text-white/90 font-medium">รวมยอดยกมาสะสม</span>
-                    <div class="relative inline-block w-8 mr-2 align-middle select-none transition duration-200 ease-in">
-                        <input type="checkbox" id="carryForwardToggle" class="toggle-checkbox absolute block w-4 h-4 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 top-0 transition-all duration-300" style="border-color: #cbd5e1; right: 16px;"/>
-                        <label for="carryForwardToggle" class="toggle-label block overflow-hidden h-4 rounded-full bg-gray-300 cursor-pointer transition-all duration-300"></label>
-                    </div>
+                    <label class="switch"><input type="checkbox" id="carryForwardToggle" aria-label="รวมยอดยกมาสะสม"><span class="switch-track"><span class="switch-thumb"></span></span></label>
                 </div>
 
                 <!-- Budget Bar -->
@@ -297,21 +351,29 @@
 
             <div class="glass-card relative rounded-3xl p-5 pb-11 border-l-4 border-income reveal" style="--d: 0.08s;"><svg id="sparkInc" class="spark" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true"></svg>
                 <div class="flex items-center gap-2 mb-2 text-income"><div class="bg-green-100 p-1.5 rounded-lg"><i class="ph-bold ph-trend-up text-lg"></i></div><p class="font-medium text-sm">รายรับ</p></div>
-                <p id="totalIncome" class="text-xl font-bold text-gray-800">฿0.00</p>
+                <p id="totalIncome" class="money text-xl font-bold text-gray-800">฿0.00</p>
             </div>
             <div class="glass-card relative rounded-3xl p-5 pb-11 border-l-4 border-expense reveal" style="--d: 0.16s;"><svg id="sparkExp" class="spark" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true"></svg>
                 <div class="flex items-center gap-2 mb-2 text-expense"><div class="bg-red-100 p-1.5 rounded-lg"><i class="ph-bold ph-trend-down text-lg"></i></div><p class="font-medium text-sm">รายจ่าย</p></div>
-                <p id="totalExpense" class="text-xl font-bold text-gray-800">฿0.00</p>
+                <p id="totalExpense" class="money text-xl font-bold text-gray-800">฿0.00</p>
             </div>
             <div class="col-span-2 glass-card rounded-3xl p-5 reveal" style="--d: 0.24s;">
-                <div class="flex justify-between items-end mb-2">
-                    <p class="text-sm font-semibold text-gray-700">รายจ่ายเทียบรายรับเดือนนี้</p>
-                    <p id="flowPercent" class="text-sm font-bold text-gray-400">-</p>
-                </div>
-                <div class="w-full h-3 rounded-full bg-green-200 overflow-hidden"><div id="flowBar" class="h-3 rounded-full bg-expense transition-all duration-500" style="width:0%"></div></div>
-                <div class="flex justify-between text-[11px] mt-1.5">
-                    <span class="text-expense font-medium">จ่ายไป <span id="flowExp">฿0</span></span>
-                    <span id="flowLeft" class="text-income font-medium">เหลือ ฿0</span>
+                <div class="flex items-center gap-4">
+                    <div class="relative w-[84px] h-[84px] shrink-0">
+                        <svg viewBox="0 0 84 84" class="w-full h-full -rotate-90" aria-hidden="true">
+                            <circle class="ring-track" cx="42" cy="42" r="34" fill="none" stroke-width="9"></circle>
+                            <circle id="flowRing" class="ring-bar" cx="42" cy="42" r="34" fill="none" stroke="#ef4444" stroke-width="9" stroke-linecap="round" stroke-dasharray="213.6" stroke-dashoffset="213.6"></circle>
+                        </svg>
+                        <span id="flowRingText" class="absolute inset-0 flex items-center justify-center text-sm font-bold text-gray-700">0%</span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold text-gray-700">รายจ่ายเทียบรายรับเดือนนี้</p>
+                        <p id="flowPercent" class="text-sm font-bold text-gray-400 mb-1">-</p>
+                        <div class="flex flex-col text-[11px] gap-0.5">
+                            <span class="text-expense font-medium">จ่ายไป <span id="flowExp" class="money">฿0</span></span>
+                            <span id="flowLeft" class="money text-income font-medium">เหลือ ฿0</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -326,6 +388,7 @@
             <div>
                 <p class="text-xs font-medium text-gray-500 mb-2">รายรับ-รายจ่าย 6 เดือนล่าสุด</p>
                 <div id="trendChart" class="flex items-end justify-between gap-2 h-36"></div>
+                <p id="trendInfo" class="text-center text-[11px] text-gray-500 mt-2 min-h-[1rem]">แตะแท่งกราฟเพื่อดูยอดของเดือนนั้น</p>
                 <div class="flex justify-center gap-4 mt-2 text-[11px] text-gray-500">
                     <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-income inline-block"></span>รายรับ</span>
                     <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-expense inline-block"></span>รายจ่าย</span>
@@ -333,6 +396,7 @@
             </div>
             <div>
                 <p class="text-xs font-medium text-gray-500 mb-2">รายจ่ายตามหมวด (เดือนที่เลือก)</p>
+                <div id="catDonut" class="flex items-center gap-4 mb-3"></div>
                 <div id="categoryChart" class="space-y-2"></div>
             </div>
             <div>
@@ -358,6 +422,7 @@
                 <span class="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">ผ่อน · รายงวด</span>
                 <span class="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">สีแถบข้าง = ธนาคาร</span>
             </div>
+            <div id="payTimeline" class="timeline hidden" aria-hidden="true"></div>
             <div id="remindersList" class="space-y-2"></div>
         </div>
 
@@ -383,8 +448,8 @@
 
     <!-- Floating Action Buttons -->
     <div id="fabBar" class="fab-bar fixed left-1/2 -translate-x-1/2 flex gap-3 w-full max-w-sm px-4 z-40" style="bottom: calc(1rem + env(safe-area-inset-bottom, 0px))">
-        <button onclick="window.openModal('incomeModal')" class="flex-1 bg-income hover:bg-green-600 text-white py-4 rounded-2xl shadow-[0_8px_16px_rgba(16,185,129,0.3)] font-semibold transition-all active:scale-95 flex items-center justify-center gap-2"><i class="ph-bold ph-plus-circle text-2xl"></i> รับเงิน</button>
-        <button onclick="window.openModal('expenseModal')" class="flex-1 bg-expense hover:bg-red-600 text-white py-4 rounded-2xl shadow-[0_8px_16px_rgba(239,68,68,0.3)] font-semibold transition-all active:scale-95 flex items-center justify-center gap-2"><i class="ph-bold ph-minus-circle text-2xl"></i> จ่ายเงิน</button>
+        <button onclick="window.openModal('incomeModal')" class="fab-btn flex-1 bg-income hover:bg-green-600 text-white py-4 rounded-2xl shadow-[0_8px_16px_rgba(16,185,129,0.3)] font-semibold transition-all active:scale-95 flex items-center justify-center gap-2"><i class="ph-bold ph-plus-circle text-2xl"></i> รับเงิน</button>
+        <button onclick="window.openModal('expenseModal')" class="fab-btn flex-1 bg-expense hover:bg-red-600 text-white py-4 rounded-2xl shadow-[0_8px_16px_rgba(239,68,68,0.3)] font-semibold transition-all active:scale-95 flex items-center justify-center gap-2"><i class="ph-bold ph-minus-circle text-2xl"></i> จ่ายเงิน</button>
     </div>
 
     <!-- Modals Container -->
@@ -521,7 +586,7 @@
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">วันกำหนดจ่าย</label><input type="date" id="expDueDate" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200"></div>
 
                     <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                        <input type="checkbox" id="expCompleted" class="w-5 h-5 text-red-600 rounded">
+                        <input type="checkbox" id="expCompleted" class="cbx">
                         <label for="expCompleted" class="text-sm font-medium text-gray-700">จ่ายแล้วเรียบร้อย</label>
                     </div>
                     <button type="submit" id="expSubmitBtn" class="submit-sticky sticky bottom-0 w-full py-3.5 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200">บันทึกรายจ่าย</button>
@@ -759,6 +824,10 @@
                 text = lastSyncAt ? 'ซิงค์แล้ว ' + new Date(lastSyncAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : 'เชื่อมต่อแล้ว';
             }
             el.className = `shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold whitespace-nowrap ${color}`;
+            if (el.dataset.label !== text) {
+                if (el.dataset.label !== undefined && !prefersReduced()) { el.classList.remove('pill-pop'); void el.offsetWidth; el.classList.add('pill-pop'); }
+                el.dataset.label = text;
+            }
             el.innerHTML = `<i class="ph-bold ${icon}"></i><span>${escapeHTML(text)}</span>`;
         }
 
@@ -822,11 +891,7 @@
 
             document.getElementById('carryForwardToggle').addEventListener('change', (e) => {
                 localStorage.setItem('carryForward', e.target.checked);
-                if(e.target.checked) {
-                    e.target.style.right = '0px'; e.target.style.borderColor = '#ff4d6d';
-                } else {
-                    e.target.style.right = '16px'; e.target.style.borderColor = '#cbd5e1';
-                }
+                haptic(8);
                 renderDashboard();
             });
 
@@ -1540,8 +1605,8 @@
             });
             let lastDate = null;
             document.getElementById('listSummary').innerHTML = `แสดง ${monthlyData.length} รายการ` +
-                (shownInc > 0 ? ` · <span class="text-income font-semibold">รายรับ +${formatMoney(shownInc)}</span>` : '') +
-                (shownExp > 0 ? ` · <span class="text-expense font-semibold">รายจ่าย -${formatMoney(shownExp)}</span>` : '');
+                (shownInc > 0 ? ` · <span class="money text-income font-semibold">รายรับ +${formatMoney(shownInc)}</span>` : '') +
+                (shownExp > 0 ? ` · <span class="money text-expense font-semibold">รายจ่าย -${formatMoney(shownExp)}</span>` : '');
 
             // ยอดของเดือนที่เลือก (ไม่ขึ้นกับช่องค้นหา) และยอดสะสม
             let incTotal = 0, monthlyExpTotal = 0, cumInc = 0, cumExp = 0;
@@ -1591,7 +1656,7 @@
                                 <div class="min-w-0"><p class="font-medium text-gray-800 break-words">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500">${safeCat} • ${formatDate(t.date)} ${taxBadge}</p></div>
                             </div>
                             <div class="text-right flex items-center shrink-0">
-                                <div><p class="font-bold text-green-600 mr-2">+${formatMoney(t.netAmount)}</p></div>
+                                <div><p class="money font-bold text-green-600 mr-2">+${formatMoney(t.netAmount)}</p></div>
                                 <i class="ph-bold ph-caret-right text-gray-300 text-sm ml-1" aria-hidden="true"></i>
                             </div>
                         `;
@@ -1605,7 +1670,7 @@
                             </div>
                             <div class="text-right flex items-center shrink-0">
                                 <div class="flex flex-col items-end mr-2">
-                                    <p class="font-bold text-red-600">-${formatMoney(t.amount)}</p>
+                                    <p class="money font-bold text-red-600">-${formatMoney(t.amount)}</p>
                                     <button onclick="window.toggleStatus('${t.id}')" class="text-xs flex items-center gap-1 ${t.isCompleted ? 'text-green-600' : 'text-orange-500'}"><i class="ph-fill ${t.isCompleted ? 'ph-check-circle' : 'ph-clock'}"></i> ${t.isCompleted ? 'จ่ายแล้ว' : 'รอจ่าย'}</button>
                                 </div>
                                 <i class="ph-bold ph-caret-right text-gray-300 text-sm ml-1" aria-hidden="true"></i>
@@ -1644,19 +1709,19 @@
 
                 if (percent >= 100) {
                     budgetBar.classList.replace('bg-white', 'bg-red-500');
-                    budgetStatus.textContent = "เกินงบ!"; budgetStatus.className = "text-[10px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded";
+                    const wasOver = budgetStatus.dataset.mood === "over"; budgetStatus.dataset.mood = "over"; budgetStatus.textContent = "😱 เกินงบ!"; budgetStatus.className = "text-[10px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded"; if (!wasOver && !prefersReduced()) budgetStatus.classList.add("wiggle");
                 } else if (percent >= 80) {
                     budgetBar.classList.replace('bg-white', 'bg-yellow-400');
-                    budgetStatus.textContent = "ใกล้หมด"; budgetStatus.className = "text-[10px] font-bold bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded";
+                    budgetStatus.dataset.mood = "warn"; budgetStatus.textContent = "😬 ใกล้หมด"; budgetStatus.className = "text-[10px] font-bold bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded";
                 } else {
                     budgetBar.classList.remove('bg-red-500', 'bg-yellow-400'); budgetBar.classList.add('bg-white');
-                    budgetStatus.textContent = "อยู่ในงบ"; budgetStatus.className = "text-[10px] font-bold bg-green-400 text-green-900 px-1.5 py-0.5 rounded";
+                    budgetStatus.dataset.mood = "ok"; budgetStatus.textContent = "😊 อยู่ในงบ"; budgetStatus.className = "text-[10px] font-bold bg-green-400 text-green-900 px-1.5 py-0.5 rounded";
                 }
             } else {
                 budgetBar.style.width = '0%';
                 budgetBar.classList.remove('bg-red-500', 'bg-yellow-400'); budgetBar.classList.add('bg-white');
                 budgetText.textContent = "กดเพื่อตั้งงบประมาณเดือนนี้";
-                budgetStatus.textContent = "ตั้งงบ"; budgetStatus.className = "text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded";
+                budgetStatus.dataset.mood = ""; budgetStatus.textContent = "ตั้งงบ"; budgetStatus.className = "text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded";
             }
 
             renderPayPlan();
@@ -1681,8 +1746,8 @@
             });
             const maxVal = Math.max(1, ...sums.map(s => Math.max(s.inc, s.exp)));
             const monthName = (m) => new Date(m + '-01').toLocaleDateString('th-TH', { month: 'short' });
-            document.getElementById('trendChart').innerHTML = sums.map(s => `
-                <div class="flex-1 flex flex-col items-center gap-1 h-full min-w-0">
+            document.getElementById('trendChart').innerHTML = sums.map((s, ix) => `
+                <div class="trend-col flex-1 flex flex-col items-center gap-1 h-full min-w-0" data-ix="${ix}" data-label="${monthName(s.m)} · รายรับ ${formatMoney(s.inc)} · รายจ่าย ${formatMoney(s.exp)}">
                     <div class="flex items-end gap-0.5 w-full flex-1 justify-center">
                         <div class="w-1/2 max-w-[14px] bg-income rounded-t${anim ? ' bar-y' : ''}" style="height:${Math.round(s.inc / maxVal * 100)}%" title="รายรับ ${formatMoney(s.inc)}"></div>
                         <div class="w-1/2 max-w-[14px] bg-expense rounded-t${anim ? ' bar-y' : ''}" style="height:${Math.round(s.exp / maxVal * 100)}%" title="รายจ่าย ${formatMoney(s.exp)}"></div>
@@ -1707,6 +1772,23 @@
                         <div class="w-full bg-gray-100 rounded-full h-2"><div class="h-2 rounded-full${anim ? ' bar-x' : ''}" style="width:${pct}%;background:${CATEGORY_COLORS[idx % CATEGORY_COLORS.length]}"></div></div>
                     </div>`;
                 }).join('');
+
+            // โดนัทสัดส่วนรายจ่าย
+            const donut = document.getElementById('catDonut');
+            if (entries.length === 0 || total <= 0) { donut.innerHTML = ''; }
+            else {
+                const C = 2 * Math.PI * 34;
+                let acc = 0;
+                const segs = entries.map(([, val], idx) => {
+                    const len = Math.max(0, (val / total) * C - (entries.length > 1 ? 2 : 0));
+                    const seg = `<circle class="${anim ? 'donut-seg' : ''}" cx="42" cy="42" r="34" fill="none" stroke="${CATEGORY_COLORS[idx % CATEGORY_COLORS.length]}" stroke-width="11" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}" style="animation-delay:${idx * 0.08}s"/>`;
+                    acc += (val / total) * C;
+                    return seg;
+                }).join('');
+                const [topName, topVal] = entries[0];
+                donut.innerHTML = `<div class="relative w-[96px] h-[96px] shrink-0"><svg viewBox="0 0 84 84" class="w-full h-full -rotate-90" aria-hidden="true"><circle cx="42" cy="42" r="34" fill="none" stroke="#f3f4f6" stroke-width="11"/>${segs}</svg><div class="absolute inset-0 flex flex-col items-center justify-center"><span class="text-[9px] text-gray-400">รวม</span><span class="money text-xs font-bold text-gray-700">${total >= 100000 ? Math.round(total / 1000) + 'k' : Math.round(total).toLocaleString('en-US')}</span></div></div>
+                    <div class="min-w-0 text-xs text-gray-500"><p>ใช้มากที่สุด</p><p class="text-sm font-bold text-gray-800 break-words">${escapeHTML(topName)}</p><p>${Math.round(topVal / total * 100)}% ของรายจ่าย</p></div>`;
+            }
         }
 
         // ตัวเลขนับขึ้น/ลงนุ่มๆ เมื่อค่าเปลี่ยน
@@ -1901,8 +1983,23 @@
                 window.showToast('จ่ายครบทุกบิลแล้ว 🎉', 'success');
             }
             celebrateArmed = 0; lastUnpaidCount = bills.length;
-            if (bills.length === 0) { box.innerHTML = ''; section.classList.add('hidden'); return; }
+            if (bills.length === 0) { box.innerHTML = ''; document.getElementById('payTimeline').classList.add('hidden'); section.classList.add('hidden'); return; }
             section.classList.remove('hidden');
+
+            // เส้นเวลา 30 วัน: เห็นว่าบิลไหนกำลังใกล้ถึง
+            const tl = document.getElementById('payTimeline');
+            const slots = {};
+            tl.innerHTML = '<div class="timeline-track"></div><div class="timeline-now"></div>' +
+                [[0, 'วันนี้'], [7, '7'], [14, '14'], [21, '21'], [30, '30 วัน']].map(([d, label]) => `<span class="timeline-tick" style="left:${d / 30 * 100}%">${label}</span>`).join('') +
+                bills.slice(0, 24).map((t, ix) => {
+                    const d = daysFromToday(t.date);
+                    const pos = Math.max(0, Math.min(30, d)) / 30 * 100;
+                    const key = Math.round(pos / 3);
+                    const stack = slots[key] = (slots[key] || 0) + 1;
+                    const bank = bankMeta(t.bank);
+                    return `<span class="timeline-dot" title="${escapeHTML(t.description)} · ${formatDate(t.date)}" style="left:${pos}%;top:${19 - Math.min(stack - 1, 2) * 12}px;background:${bank.color};animation-delay:${ix * 0.05}s"></span>`;
+                }).join('');
+            tl.classList.remove('hidden');
 
             const GROUPS = [
                 { id: 'over', title: 'เกินกำหนดแล้ว', head: 'text-red-600', dot: 'bg-red-500', test: d => d < 0 },
@@ -1944,7 +2041,7 @@
                             ${extra}
                         </div>
                         <div class="text-right shrink-0">
-                            <p class="font-bold text-red-600 text-sm">-${formatMoney(t.amount)}</p>
+                            <p class="money font-bold text-red-600 text-sm">-${formatMoney(t.amount)}</p>
                             <button onclick="window.payBill('${t.id}')" class="mt-1 text-xs ${d < 0 ? 'bg-red-600' : d <= 7 ? 'bg-orange-500' : 'bg-sky-500'} text-white px-3 py-1.5 rounded-lg font-semibold">${kind === 'minpay' ? 'ระบุจ่าย' : 'จ่ายแล้ว'}</button>
                         </div>
                     </div>`;
@@ -1999,6 +2096,32 @@
             document.body.appendChild(o);
             setTimeout(() => o.remove(), 1000);
         }
+
+        // ===== ลูกเล่น: ซ่อนตัวเลข / โลโก้หมุน / แตะแท่งกราฟดูยอด =====
+        window.togglePrivacy = () => {
+            const on = document.body.classList.toggle('privacy');
+            document.querySelector('#privacyBtn i').className = 'ph-bold text-lg ' + (on ? 'ph-eye-slash' : 'ph-eye');
+            try { localStorage.setItem('privacy', on ? '1' : '0'); } catch (e) {}
+            haptic(10);
+        };
+        window.spinLogo = () => {
+            const el = document.getElementById('appLogo');
+            if (prefersReduced()) return;
+            el.classList.remove('logo-spin'); void el.offsetWidth; el.classList.add('logo-spin');
+            haptic(10);
+        };
+        document.getElementById('trendChart').addEventListener('click', (e) => {
+            const col = e.target.closest('.trend-col');
+            if (!col) return;
+            const chart = document.getElementById('trendChart');
+            const already = col.classList.contains('trend-on');
+            chart.querySelectorAll('.trend-col').forEach(c => c.classList.remove('trend-on'));
+            chart.classList.toggle('trend-dim', !already);
+            if (!already) col.classList.add('trend-on');
+            document.getElementById('trendInfo').textContent = already ? 'แตะแท่งกราฟเพื่อดูยอดของเดือนนั้น' : col.dataset.label;
+            haptic(6);
+        });
+        try { if (localStorage.getItem('privacy') === '1') { document.body.classList.add('privacy'); document.querySelector('#privacyBtn i').className = 'ph-bold text-lg ph-eye-slash'; } } catch (e) {}
 
         // ===== ปัดแถวรายการ: ซ้าย=ลบ (เลิกทำได้) ขวา=จ่ายแล้ว แตะ=แก้ไข =====
         function attachSwipe(row, card, t) {
@@ -2237,8 +2360,10 @@
 
             // แถบรายจ่ายเทียบรายรับ
             const pct = incTotal > 0 ? expTotal / incTotal * 100 : (expTotal > 0 ? 100 : 0);
-            const bar = document.getElementById('flowBar');
-            bar.style.width = Math.min(100, pct) + '%';
+            const ring = document.getElementById('flowRing');
+            ring.style.strokeDashoffset = String(213.6 * (1 - Math.min(100, pct) / 100));
+            ring.setAttribute('stroke', pct > 100 ? '#b91c1c' : pct >= 80 ? '#f59e0b' : '#ef4444');
+            document.getElementById('flowRingText').textContent = Math.round(pct) + '%';
             const pctEl = document.getElementById('flowPercent');
             pctEl.textContent = incTotal > 0 ? `${Math.round(pct)}% ของรายรับ` : (expTotal > 0 ? 'ยังไม่มีรายรับ' : '-');
             pctEl.className = 'text-sm font-bold ' + (pct > 100 ? 'text-expense' : pct >= 80 ? 'text-yellow-600' : 'text-income');

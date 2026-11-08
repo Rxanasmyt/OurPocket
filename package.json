@@ -9,7 +9,8 @@
     "test:ui": "node tests/gas/ui-regression.js",
     "test:anim": "node tests/gas/animation.js",
     "test:features": "node tests/gas/features.js",
-    "test:motion": "node tests/gas/motion.js"
+    "test:motion": "node tests/gas/motion.js",
+    "test:graphics": "node tests/gas/graphics.js"
   },
   "devDependencies": {
     "tailwindcss": "3.4.17",
