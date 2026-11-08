@@ -19,4 +19,6 @@ npm install
 npm run build:css     # หลังแก้คลาส Tailwind ใน index.html
 npm run test:sheet    # ทดสอบการบันทึกลงชีต + สูตรแดชบอร์ด/ลำดับจ่าย
 npm run test:e2e      # ทดสอบแอป <-> ชีตแบบครบวงจร (ต้องเปิด python3 -m http.server 8080 ก่อน)
+npm run test:ui       # ทดสอบการใช้งานจริงบนมือถือ (กรอกข้อมูลแปลกๆ)
+npm run test:anim     # ทดสอบแอนิเมชัน/ท่าทางสัมผัส (ปัดปิด, ดึงเพื่อซิงค์ ฯลฯ)
 ```
