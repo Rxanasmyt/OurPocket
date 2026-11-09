@@ -9,11 +9,11 @@ const M0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
 const seed = [{ id: 'e1', type: 'expense', date: M0 + '-05', monthYear: M0, category: 'อาหาร', who: 'Anas', description: 'ข้าว', bank: 'เงินสด', amount: 300, isCompleted: true, timestamp: 7 }];
 (async () => {
   const browser = await chromium.launch();
-  const mk = async (init) => {
+  const mk = async (init, arg) => {
     const ctx = await browser.newContext({ viewport: { width: 375, height: 800 }, hasTouch: true, isMobile: true });
     const p = await ctx.newPage(); const errs = [];
     p.on('pageerror', (e) => errs.push(e.message)); p.on('dialog', (d) => d.dismiss());
-    await p.addInitScript(init, seed);
+    await p.addInitScript(init, arg ? [arg] : seed);
     await p.goto('http://localhost:8080/index.html', { waitUntil: 'load' }); await p.waitForTimeout(1800);
     return { p, errs };
   };
@@ -42,6 +42,11 @@ const seed = [{ id: 'e1', type: 'expense', date: M0 + '-05', monthYear: M0, cate
   await r.p.fill('#expAmount', '123'); await r.p.evaluate(() => { document.getElementById('expDesc').focus(); document.getElementById('expAmount').focus(); });
   ok(await r.p.evaluate(() => { const a = document.getElementById('expAmount'); return a.selectionStart === 0 && a.selectionEnd === a.value.length || a.value === '123'; }), 'amount field keeps value and is selectable');
   ok(r.errs.length === 0, 'no page errors after fast entry');
+  console.log('== due day stays the same each month ==');
+  const bill = { id: 'in1', type: 'expense', date: '2026-08-31', monthYear: '2026-08', category: 'หนี้สิน', who: 'Anas', description: 'ผ่อนมือถือ', bank: 'SCB', amount: 1500, isCompleted: true, payMode: 'installment', installmentAmount: 1500, currentInstallment: '1', totalInstallments: '8', timestamp: 1 };
+  const r2 = await mk((s) => { localStorage.setItem('ourWalletData', JSON.stringify([s[0]])); }, bill);
+  const dates = await r2.p.evaluate(() => JSON.parse(localStorage.getItem('ourWalletData')).filter(t => t.description === 'ผ่อนมือถือ').map(t => t.date).sort());
+  ok(dates.length >= 4 && dates.slice(1).every((d) => d.endsWith('-30') || d.endsWith('-31') || d.endsWith('-28')) && dates.includes('2026-10-31'), 'installment keeps day 31 (30 in short months): ' + dates.join(','));
   console.log(`\n${pass} passed, ${fail} failed`);
   await browser.close(); process.exit(fail ? 1 : 0);
 })();
