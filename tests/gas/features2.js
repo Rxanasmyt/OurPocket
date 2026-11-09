@@ -144,6 +144,17 @@ const seed = [
   ok(cs.gov && cr.gov && cs.date === cr.date && cs.count === 'next' && cr.count === 'next', 'salary and risk pay: same computed payday, counted next month (' + cs.date + ')');
   ok(!cp.gov && cp.count === 'next', 'PTS: no payday calculation, but counted in the next month');
   ok(!cv.gov && cv.count === 'same', 'other allowances: unchanged (counted in the month received)');
+  console.log('== month hint + switching category after the default salary ==');
+  r = await mk([]);
+  await r.p.evaluate(() => { window.closeModal(); window.openModal('incomeModal'); }); await r.p.waitForTimeout(500);
+  ok((await r.p.textContent('#incCountHint')).includes('ธ.ค.') || (await r.p.textContent('#incCountHint')).includes('ธันวาคม') || (await r.p.textContent('#incCountHint')).length > 10, 'hint shows which month a default salary will be counted in: ' + (await r.p.textContent('#incCountHint')).trim());
+  await r.p.fill('#incDate', M0 + '-11');
+  await r.p.locator('#incomeModal .chip', { hasText: 'ค่าเวร' }).first().click(); await r.p.waitForTimeout(300);
+  const hv = (await r.p.textContent('#incCountHint')).trim();
+  ok(await r.p.evaluate(() => document.getElementById('incCountMonth').value === 'same' && !document.getElementById('incGov3').checked), 'switching from salary to duty pay resets to "month received"');
+  ok(hv.includes('(รับวันที่') === false, 'hint for duty pay does not mention a different month: ' + hv);
+  await r.p.fill('#incDesc', 'ค่าเวร'); await r.p.fill('#incAmount', '1000'); await r.p.click('#incSubmitBtn'); await r.p.waitForTimeout(900);
+  ok(await r.p.evaluate((m) => { const t = JSON.parse(localStorage.getItem('ourWalletData')).find((x) => x.category === 'ค่าเวร'); return t && t.monthYear === m && !t.useNext; }, M0), 'duty pay received on the 11th is counted in the same month');
   console.log(`\n${pass} passed, ${fail} failed`);
   await browser.close(); process.exit(fail ? 1 : 0);
 })();

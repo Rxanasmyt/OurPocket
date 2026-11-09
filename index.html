@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.31.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.32.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -655,6 +655,7 @@
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1">นับเป็นรายรับของเดือน</label>
                             <select id="incCountMonth" class="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm"><option value="same">เดือนที่รับเงิน</option><option value="next">เดือนถัดไป (เงินที่ใช้จ่ายเดือนหน้า)</option></select>
+                            <p id="incCountHint" class="mt-1.5 text-xs font-semibold text-sky-700"></p>
                         </div>
                     </div>
                     <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
@@ -1119,6 +1120,17 @@
                 if (!countTouched && !govBox().checked) document.getElementById('incCountMonth').value = NEXT_CATS.includes(cat) ? 'next' : 'same';
             };
             document.getElementById('incCountMonth').addEventListener('change', () => { countTouched = true; });
+            // บอกชัดๆ ก่อนบันทึกว่ารายการนี้จะไปอยู่ในรายรับของเดือนไหน
+            const updateCountHint = () => {
+                const d = document.getElementById('incDate').value;
+                const hint = document.getElementById('incCountHint');
+                if (!d) { hint.textContent = ''; return; }
+                const next = document.getElementById('incCountMonth').value === 'next' || govBox().checked;
+                const ym = next ? addMonth(d.slice(0, 7), 1) : d.slice(0, 7);
+                hint.textContent = `จะนับเป็นรายรับของเดือน ${thaiMonthYear(ym + '-01')}` + (next ? ' (รับวันที่ ' + formatDate(d) + ')' : '');
+            };
+            window.updateCountHint = updateCountHint;
+            ['incDate', 'incCountMonth', 'incGov3', 'incCategory'].forEach(id => { const el = document.getElementById(id); el.addEventListener('change', () => setTimeout(updateCountHint, 0)); el.addEventListener('input', () => setTimeout(updateCountHint, 0)); });
             window.resetGovState = () => { govTouched = false; countTouched = false; govYm = ''; };
             govBox().addEventListener('change', () => { govTouched = true; if (govBox().checked) applyGovDate(); syncCount(); });
             document.getElementById('incCategory').addEventListener('change', () => window.autoGov());
@@ -1254,7 +1266,7 @@
                     document.getElementById('incModalTitle').innerHTML = '<i class="ph-fill ph-plus-circle"></i> เพิ่มรายรับ';
                     document.getElementById('incSubmitBtn').textContent = "บันทึกรายรับ";
                     applyLastChoices();
-                    window.resetGovState(); document.getElementById('incCountMonth').disabled = false; window.autoGov();
+                    window.resetGovState(); document.getElementById('incCountMonth').disabled = false; window.autoGov(); window.updateCountHint();
                 }
                 if(id === 'expenseModal') {
                     document.getElementById('expenseForm').reset(); updateExpenseModeUI();
@@ -1451,6 +1463,7 @@
                 document.getElementById('incGov3').checked = item.payRule === 'gov3';
                 document.getElementById('incCountMonth').value = item.useNext ? 'next' : 'same';
                 document.getElementById('incCountMonth').disabled = item.payRule === 'gov3';
+                window.updateCountHint();
                 document.getElementById('incNetAmountDisplay').textContent = formatMoney(item.netAmount);
                 document.getElementById('incModalTitle').innerHTML = '<i class="ph-fill ph-pencil-simple"></i> แก้ไขรายรับ';
                 document.getElementById('incSubmitBtn').textContent = "อัปเดตข้อมูล";
