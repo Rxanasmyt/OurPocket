@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.20.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.21.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -105,6 +105,9 @@
         .value-flash { animation: valuePop 0.7s var(--ease-out); }
         /* ===== การ์ดยอดคงเหลือ: แสงเคลื่อนไหวช้าๆ ===== */
         .hero-aurora::before, .hero-aurora::after { content: ""; position: absolute; border-radius: 50%; filter: blur(34px); opacity: 0.36; pointer-events: none; will-change: transform; }
+        /* แถบงบ: ใกล้หมด/เกินงบ มีลายทแยงวิ่งเตือนให้สะดุดตา */
+        #budgetProgressBar.bg-yellow-400, #budgetProgressBar.bg-red-500 { background-image: linear-gradient(135deg, rgba(255,255,255,0.38) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.38) 50%, rgba(255,255,255,0.38) 75%, transparent 75%); background-size: 14px 14px; animation: barStripe 0.9s linear infinite; }
+        @keyframes barStripe { to { background-position: 14px 0; } }
         /* แสงวาบพาดผ่านการ์ดยอดคงเหลือหนึ่งครั้งตอนเปิดแอป */
         .hero-aurora .sheen { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.35) 50%, transparent 65%); transform: translateX(-120%); animation: sheenSweep 1.3s cubic-bezier(.4,0,.2,1) 1.1s 1 both; }
         @keyframes sheenSweep { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
