@@ -3,6 +3,7 @@
   "private": true,
   "description": "Our Wallet - static web app. Run `npm run build:css` after changing Tailwind classes in index.html.",
   "scripts": {
+    "build:icons": "node tools/build-icons.js",
     "build:css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --minify",
     "test:sheet": "node tests/gas/test-sheet.js && node tests/gas/test-formulas.js",
     "test:e2e": "node tests/gas/e2e.js",
@@ -15,10 +16,12 @@
     "test:modern": "node tests/gas/modern.js",
     "test:harden": "node tests/gas/harden.js",
     "test:features2": "node tests/gas/features2.js",
+    "test:onboarding": "node tests/gas/onboarding.js",
     "test:monkey": "node tests/gas/monkey.js",
     "test:monkey-sync": "node tests/gas/monkey-sync.js"
   },
   "devDependencies": {
+    "@phosphor-icons/core": "2.1.1",
     "tailwindcss": "3.4.17",
     "hyperformula": "2.7.1"
   }

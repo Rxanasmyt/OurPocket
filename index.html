@@ -26,11 +26,11 @@
     <meta name="apple-mobile-web-app-title" content="Our Wallet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <script src="https://unpkg.com/@phosphor-icons/web@2.1.1" defer></script>
+    <link rel="stylesheet" href="icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.27.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.28.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -118,6 +118,15 @@
         #delConfirm .del-card.shake { animation: shake 0.45s var(--ease-standard); }
         #delConfirm.out { animation: delBackOut 0.18s ease both; pointer-events: none; }
         #delConfirm.out .del-card { animation: delCardOut 0.18s ease both; }
+        #onboard { animation: delBack 0.25s ease both; }
+        #onboard .ob-card { animation: delCard 0.5s var(--spring) both; }
+        #onboard.out { animation: delBackOut 0.2s ease both; pointer-events: none; }
+        #onboard.out .ob-card { animation: delCardOut 0.2s ease both; }
+        #onboard .ob-card.shake { animation: shake 0.45s var(--ease-standard); }
+        @keyframes obStep { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+        #onboard .ob-step { animation: obStep 0.35s var(--ease-out) both; }
+        .ob-dot { width: 8px; height: 8px; border-radius: 999px; background: #e5e7eb; transition: width 0.35s var(--spring), background-color 0.25s ease; }
+        .ob-dot.on { width: 22px; background: #ff4d6d; }
         @keyframes dueIn { from { opacity: 0; transform: translateY(-10px) scale(0.97); } to { opacity: 1; transform: none; } }
         @keyframes bellRing { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(4deg); } }
         .due-pop { animation: dueIn 0.55s var(--spring) both; }
@@ -1040,7 +1049,7 @@
             setTimeout(() => {
                 const ov = document.getElementById('loadingOverlay');
                 ov.style.opacity = '0'; ov.style.pointerEvents = 'none';
-                initReveal(); initFastEntry();   // ให้ส่วนต่างๆ ปรากฏหลังหน้าโหลดจางหาย
+                initReveal(); initFastEntry(); setTimeout(maybeOnboard, 700);   // ให้ส่วนต่างๆ ปรากฏหลังหน้าโหลดจางหาย
                 setTimeout(() => ov.style.display = 'none', 350);
             }, 300);
         }
@@ -2335,6 +2344,84 @@
 
         // ===== เอฟเฟกต์ระดับแอปทางการ: เลื่อนถึงแล้วค่อยปรากฏ / สั่นเมื่อกรอกผิด / ติ๊กถูกเมื่อบันทึกสำเร็จ =====
         // กรอกเร็ว: กด Enter/ถัดไปที่ช่องรายละเอียดแล้วเด้งไปช่องจำนวนเงิน และแตะช่องตัวเลขแล้วเลือกทั้งหมดให้พิมพ์ทับได้เลย
+        // ===== หน้าต้อนรับตอนเปิดครั้งแรก: อธิบายสั้นๆ แล้วพาใส่ URL + รหัสผ่านซิงค์ (ไม่ต้องไปหาปุ่มเฟือง) =====
+        function maybeOnboard() {
+            let done = false;
+            try { done = localStorage.getItem('onboardDone') === '1'; } catch (e) {}
+            if (done || window.sheetsWebhookUrl || allTransactions.length > 0 || document.getElementById('onboard')) return;
+            const finish = (connected) => {
+                try { localStorage.setItem('onboardDone', '1'); } catch (e) {}
+                if (prefersReduced()) box.remove(); else { box.classList.add('out'); setTimeout(() => box.remove(), 210); }
+                if (!connected) window.showToast('ใช้ในเครื่องนี้ได้เลย ตั้งซิงค์ภายหลังได้ที่ปุ่มเฟือง', 'success');
+            };
+            const box = document.createElement('div');
+            box.id = 'onboard';
+            box.className = 'fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm';
+            box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'obTitle');
+            const dots = (n) => `<div class="flex justify-center gap-1.5 mb-4" aria-hidden="true"><span class="ob-dot ${n === 1 ? 'on' : ''}"></span><span class="ob-dot ${n === 2 ? 'on' : ''}"></span></div>`;
+            const step1 = () => {
+                box.innerHTML = `<div class="ob-card bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 max-h-[90dvh] overflow-y-auto">
+                    ${dots(1)}
+                    <div class="ob-step">
+                        <img src="icons/icon.svg" alt="" class="w-16 h-16 rounded-2xl shadow-lg shadow-primary/20 mx-auto mb-3">
+                        <h3 id="obTitle" class="text-xl font-bold text-center text-gray-800">ยินดีต้อนรับสู่ Our Wallet</h3>
+                        <p class="text-center text-sm text-gray-500 mt-1">สมุดบัญชีรายรับ-รายจ่ายของคู่เรา</p>
+                        <ul class="mt-4 space-y-2.5 text-sm text-gray-700">
+                            <li class="flex gap-2.5"><i class="ph-bold ph-plus-circle text-primary text-lg mt-0.5"></i><span>บันทึกรายรับ รายจ่าย ผ่อนบัตร ได้ในไม่กี่วินาที</span></li>
+                            <li class="flex gap-2.5"><i class="ph-bold ph-bell-ringing text-primary text-lg mt-0.5"></i><span>บิลผ่อนเลื่อนงวดถัดไปให้เอง และเตือนก่อนครบกำหนด</span></li>
+                            <li class="flex gap-2.5"><i class="ph-bold ph-arrows-clockwise text-primary text-lg mt-0.5"></i><span>ซิงค์กับ Google Sheet ให้ทั้งสองคนเห็นข้อมูลเดียวกัน</span></li>
+                        </ul>
+                        <button type="button" id="obNext" class="w-full mt-5 py-3.5 rounded-xl font-medium text-white bg-primary shadow-lg shadow-primary/30">เชื่อมต่อ Google Sheet</button>
+                        <button type="button" id="obSkip" class="w-full mt-2 py-3 rounded-xl font-medium text-gray-500 bg-gray-100">ใช้ในเครื่องนี้ก่อน</button>
+                    </div></div>`;
+                box.querySelector('#obNext').onclick = step2;
+                box.querySelector('#obSkip').onclick = () => finish(false);
+            };
+            const step2 = () => {
+                box.innerHTML = `<div class="ob-card bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 max-h-[90dvh] overflow-y-auto">
+                    ${dots(2)}
+                    <div class="ob-step">
+                        <h3 id="obTitle" class="text-lg font-bold text-gray-800">เชื่อมต่อ Google Sheet</h3>
+                        <p class="text-xs text-gray-500 mt-1">ใน Apps Script กด ทำให้ใช้งานได้ → เว็บแอป แล้วคัดลอก URL (ลงท้าย /exec) มาวาง ถ้าอีกเครื่องเชื่อมไว้แล้ว ใช้ URL และรหัสเดียวกัน</p>
+                        <input type="text" id="obUrl" inputmode="url" autocomplete="off" placeholder="https://script.google.com/.../exec" class="w-full mt-3 px-4 py-2.5 rounded-xl border border-gray-200 text-sm">
+                        <input type="password" id="obKey" autocomplete="off" placeholder="รหัสผ่านซิงค์ (ถ้าตั้งไว้)" class="w-full mt-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm">
+                        <p class="text-[11px] text-gray-400 mt-1">รหัสต้องตรงกับ WALLET_KEY ใน Apps Script เก็บในเครื่องนี้เท่านั้น</p>
+                        <div id="obResult" class="hidden text-xs rounded-xl p-3 mt-3 whitespace-pre-line"></div>
+                        <button type="button" id="obGo" class="w-full mt-4 py-3.5 rounded-xl font-medium text-white bg-green-600 shadow-lg shadow-green-200">ทดสอบและเชื่อมต่อ</button>
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            <button type="button" id="obBack" class="py-3 rounded-xl font-medium text-gray-600 bg-gray-100">ย้อนกลับ</button>
+                            <button type="button" id="obSkip2" class="py-3 rounded-xl font-medium text-gray-500 bg-gray-100">ข้ามไปก่อน</button>
+                        </div>
+                    </div></div>`;
+                const res = box.querySelector('#obResult');
+                const say = (msg, good) => { res.classList.remove('hidden', 'bg-green-50', 'text-green-700', 'bg-red-50', 'text-red-600', 'bg-gray-100', 'text-gray-600'); res.classList.add(...(good === true ? ['bg-green-50', 'text-green-700'] : good === false ? ['bg-red-50', 'text-red-600'] : ['bg-gray-100', 'text-gray-600'])); res.textContent = msg; };
+                box.querySelector('#obBack').onclick = step1;
+                box.querySelector('#obSkip2').onclick = () => finish(false);
+                const go = box.querySelector('#obGo');
+                go.onclick = async () => {
+                    const urlEl = box.querySelector('#obUrl');
+                    const url = urlEl.value.trim().replace(/^["']|["']$/g, '');
+                    const key = box.querySelector('#obKey').value.trim();
+                    const bad = !url ? 'กรอก URL ของ Apps Script ก่อน (ขึ้นต้น https://script.google.com/ ลงท้าย /exec)' : validateUrl(url);
+                    if (bad) { say('❌ ' + bad, false); markInvalid(urlEl); return; }
+                    go.disabled = true; say('กำลังทดสอบ…');
+                    try {
+                        const api = await checkScript(url);
+                        if (api < REQUIRED_API) { say(explainText('outdated'), false); go.disabled = false; return; }
+                        const r = await callSheets({ action: 'selftest' }, url, key, true);
+                        if (r.code === 'unauthorized') { say(explainText('unauthorized'), false); go.disabled = false; return; }
+                        if (r.status !== 'success') { say(explainText(codeOfResult(r), r.message || ''), false); go.disabled = false; return; }
+                        say('✅ เชื่อมต่อสำเร็จ', true);
+                        document.getElementById('sheetsUrlInput').value = url; document.getElementById('sheetsKeyInput').value = key;
+                        window.saveSheetsUrl();
+                        setTimeout(() => finish(true), 700);
+                    } catch (err) { say(explainText(codeOfError(err), err.detail), false); go.disabled = false; }
+                };
+            };
+            document.body.appendChild(box);
+            step1();
+        }
+
         // ช่องที่กรอกผิด/ว่าง: ขอบแดง + สั่น + โฟกัสให้เลย (ลบเองเมื่อพิมพ์แก้)
         function markInvalid(el) {
             if (!el) return;

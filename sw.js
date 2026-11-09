@@ -1,6 +1,6 @@
 // Service worker: เปิดแอปได้แม้ออฟไลน์ (ออนไลน์จะดึงไฟล์ใหม่ก่อนเสมอ ออฟไลน์ค่อยใช้ของที่แคชไว้)
-const CACHE = 'ourwallet-shell-v1';
-const SHELL = ['./', 'index.html', 'tailwind.css', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+const CACHE = 'ourwallet-shell-v2';
+const SHELL = ['./', 'index.html', 'tailwind.css', 'icons.css', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
