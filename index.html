@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.30.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.31.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -1105,13 +1105,21 @@
                 const ym = (el.value || localDateStr()).slice(0, 7);
                 el.value = calcPayday(ym); govYm = ym; fire(el);
             };
+            // เงินเดือน + ค่าเสี่ยงภัย เข้าวันเดียวกัน (คำนวณวันที่ให้) / ค่า พตส เข้าก่อนสิ้นเดือนแต่วันไม่ตายตัว (ไม่คำนวณวัน แต่นับเป็นเดือนถัดไป)
+            const GOV_CATS = ['เงินเดือน', 'ค่าเสี่ยงภัย'], NEXT_CATS = ['ค่า พตส'];
+            let countTouched = false;
             window.autoGov = () => {
-                if (govTouched || currentEditId) return;
-                const want = document.getElementById('incCategory').value === 'เงินเดือน';
-                if (govBox().checked !== want) { govBox().checked = want; if (want) applyGovDate(); }
+                if (currentEditId) return;
+                const cat = document.getElementById('incCategory').value;
+                if (!govTouched) {
+                    const want = GOV_CATS.includes(cat);
+                    if (govBox().checked !== want) { govBox().checked = want; if (want) applyGovDate(); }
+                }
                 syncCount();
+                if (!countTouched && !govBox().checked) document.getElementById('incCountMonth').value = NEXT_CATS.includes(cat) ? 'next' : 'same';
             };
-            window.resetGovState = () => { govTouched = false; govYm = ''; };
+            document.getElementById('incCountMonth').addEventListener('change', () => { countTouched = true; });
+            window.resetGovState = () => { govTouched = false; countTouched = false; govYm = ''; };
             govBox().addEventListener('change', () => { govTouched = true; if (govBox().checked) applyGovDate(); syncCount(); });
             document.getElementById('incCategory').addEventListener('change', () => window.autoGov());
             document.getElementById('incDate').addEventListener('change', () => {
