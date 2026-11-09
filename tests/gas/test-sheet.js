@@ -19,7 +19,7 @@ ok(JSON.stringify(names) === JSON.stringify(['สรุป', 'ลำดับจ
 ok(env.props.get('setupErrors') === '', 'no setup errors: "' + env.props.get('setupErrors') + '"');
 const data = env.ss.getSheetByName('รายการ');
 const hdr = data.getRange(1, 1, 1, data.getLastColumn()).getValues()[0];
-ok(hdr.length === 22, 'headers = 22: ' + hdr.length);
+ok(hdr.length === 23, 'headers = 23: ' + hdr.length);
 const row = (n) => { const o = {}; data.getRange(n, 1, 1, hdr.length).getValues()[0].forEach((v, i) => (o[hdr[i]] = v)); return o; };
 let r2 = row(2);
 ok(r2['ประเภท'] === 'รายรับ' && r2['จำนวนเงิน'] === 29100 && r2['ยอดก่อนหัก'] === 30000 && r2['หัก ณ ที่จ่าย %'] === 3 && r2['ที่มา'] === 'กรอกเอง', 'income row complete: ' + JSON.stringify(r2).slice(0, 220));
@@ -79,7 +79,7 @@ const legacyRow = ['รายจ่าย', '2026-10-05', '2026-10', 'อาห�
 legacyRow.forEach((v, c) => old.set(2, c + 1, v));
 env.post({ action: 'sync' });
 const dh = old.getRange(1, 1, 1, old.getLastColumn()).getValues()[0];
-ok(old.name === 'รายการ' && dh.length === 22 && dh.slice(0, 18).join() === OLD.join(), 'old sheet renamed + 4 columns appended after the old 18: ' + dh.length);
+ok(old.name === 'รายการ' && dh.length === 23 && dh.slice(0, 18).join() === OLD.join(), 'old sheet renamed + 5 columns appended after the old 18: ' + dh.length);
 const lr = {}; old.getRange(2, 1, 1, dh.length).getValues()[0].forEach((v, i) => (lr[dh[i]] = v));
 ok(lr['ID'] === 'old1' && lr['จำนวนเงิน'] === 120 && lr['บันทึกเมื่อ'] === '05/10/2026 12:00:00', 'legacy row preserved (id, amount, original saved-at)');
 ok(lr['ยอดเต็มบิล'] === '' && lr['งวดที่'] === '' && lr['ที่มา'] === 'กรอกเอง', "legacy '-' placeholders cleaned to blanks, new columns backfilled");
@@ -172,6 +172,16 @@ const rd = rc.ss.getSheetByName('รายการ');
 const rh = rd.getRange(1, 1, 1, rd.getLastColumn()).getValues()[0];
 const ri = rh.indexOf('รับประจำ') + 1;
 ok(ri > 0 && rd.getRange(2, ri).getValue() === 'ทุกเดือน' && rd.getRange(3, ri).getValue() === '', 'recurring income marked "ทุกเดือน", normal income blank');
+
+console.log('== salary counted in the next month ==');
+const un = makeEnv({ sheets: ['Sheet1'] });
+un.post({ ...rec.income, id: 'u1', date: '2026-10-27', monthYear: '2026-11', useNext: true });
+un.post({ ...rec.income, id: 'u2', date: '2026-11-05', monthYear: '2026-11' });
+const ud = un.ss.getSheetByName('รายการ');
+const uh = ud.getRange(1, 1, 1, ud.getLastColumn()).getValues()[0];
+const uc = uh.indexOf('นับเป็นเดือนถัดไป') + 1, dcol = uh.indexOf('วันที่') + 1, mcol = uh.indexOf('เดือน-ปี') + 1;
+ok(uc > 0 && ud.getRange(2, uc).getValue() === 'ใช่' && ud.getRange(3, uc).getValue() === '', 'next-month flag column filled only for those rows');
+ok(ud.getRange(2, dcol).getValue() === '2026-10-27' && ud.getRange(2, mcol).getValue() === '2026-11', 'real receive date kept, month column = month it is counted in');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

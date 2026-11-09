@@ -45,7 +45,7 @@ async function open(browser, reduced) {
   ok(await p.evaluate((n) => document.querySelectorAll('#transactionsList .swipe-row').length === n && !document.documentElement.dataset.vtDir, expectRows), `rapid back-to-back changes settle on the right state (${expectRows} rows) without leftovers`);
 
   console.log('== odometer digits ==');
-  await p.evaluate(() => { window.openModal('incomeModal'); document.getElementById('incDesc').value = 'โบนัส'; document.getElementById('incAmount').value = '12345'; document.getElementById('incomeForm').requestSubmit(); });
+  await p.evaluate(() => { window.openModal('incomeModal'); { const g = document.getElementById('incGov3'); g.checked = false; g.dispatchEvent(new Event('change')); document.getElementById('incCountMonth').value = 'same'; } document.getElementById('incDesc').value = 'โบนัส'; document.getElementById('incAmount').value = '12345'; document.getElementById('incomeForm').requestSubmit(); });
   await p.waitForTimeout(250);
   ok(await p.$$eval('#totalIncome .dg', (e) => e.length) >= 3, 'changed digits are wrapped to roll: ' + await p.$$eval('#totalIncome .dg', (e) => e.length));
   ok(await p.$$eval('#totalIncome .dg', (e) => e.every((x) => x.dataset.prev !== undefined)), 'each rolling digit remembers the digit it replaces');

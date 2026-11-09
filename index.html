@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.29.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.30.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -647,6 +647,16 @@
                             <option value="0" data-short="ไม่หักภาษี">ไม่หักภาษี (รับเต็ม 100%)</option><option value="3" data-short="หัก 3%">หัก 3%</option>
                         </select>
                     </div>
+                    <div class="p-3 bg-sky-50 rounded-xl border border-sky-100 space-y-2">
+                        <div class="flex items-start gap-3">
+                            <input type="checkbox" id="incGov3" class="cbx mt-1">
+                            <label for="incGov3" class="text-sm font-medium text-gray-700">เงินเดือนข้าราชการ <span class="block text-[11px] font-normal text-gray-500">เข้า 3 วันทำการก่อนวันทำการสุดท้ายของเดือน · คำนวณวันที่ให้ · นับเป็นรายรับของเดือนถัดไป</span></label>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">นับเป็นรายรับของเดือน</label>
+                            <select id="incCountMonth" class="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm"><option value="same">เดือนที่รับเงิน</option><option value="next">เดือนถัดไป (เงินที่ใช้จ่ายเดือนหน้า)</option></select>
+                        </div>
+                    </div>
                     <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                         <input type="checkbox" id="incRecurring" class="cbx">
                         <label for="incRecurring" class="text-sm font-medium text-gray-700">รับทุกเดือน <span class="block text-[11px] font-normal text-gray-400">สร้างรายการเดือนถัดไปให้เอง วันที่เดิมทุกเดือน</span></label>
@@ -1086,6 +1096,30 @@
             document.getElementById('incAmount').addEventListener('input', calcNet);
             document.getElementById('incTaxRate').addEventListener('change', calcNet);
 
+            // เงินเดือนข้าราชการ: ติ๊กแล้วคำนวณวันที่ให้ และนับเป็นรายรับเดือนถัดไป
+            let govTouched = false, govYm = '';
+            const govBox = () => document.getElementById('incGov3');
+            const syncCount = () => { const sel = document.getElementById('incCountMonth'); if (govBox().checked) sel.value = 'next'; sel.disabled = govBox().checked; };
+            const applyGovDate = () => {
+                const el = document.getElementById('incDate');
+                const ym = (el.value || localDateStr()).slice(0, 7);
+                el.value = calcPayday(ym); govYm = ym; fire(el);
+            };
+            window.autoGov = () => {
+                if (govTouched || currentEditId) return;
+                const want = document.getElementById('incCategory').value === 'เงินเดือน';
+                if (govBox().checked !== want) { govBox().checked = want; if (want) applyGovDate(); }
+                syncCount();
+            };
+            window.resetGovState = () => { govTouched = false; govYm = ''; };
+            govBox().addEventListener('change', () => { govTouched = true; if (govBox().checked) applyGovDate(); syncCount(); });
+            document.getElementById('incCategory').addEventListener('change', () => window.autoGov());
+            document.getElementById('incDate').addEventListener('change', () => {
+                if (!govBox().checked) return;
+                const ym = (document.getElementById('incDate').value || '').slice(0, 7);
+                if (ym && ym !== govYm) { govYm = ym; document.getElementById('incDate').value = calcPayday(ym); }
+            });
+
             document.getElementById('incomeForm').addEventListener('submit', (e) => {
                 e.preventDefault();
                 const amt = round2(parseFloat(document.getElementById('incAmount').value));
@@ -1103,6 +1137,10 @@
                     timestamp: new Date().getTime()
                 };
                 if (document.getElementById('incRecurring').checked) data.recurring = true;
+                // นับเป็นรายรับเดือนถัดไป: monthYear = เดือนที่ใช้จ่าย ส่วน date = วันที่รับเงินจริง
+                const gov = govBox().checked;
+                if (gov || document.getElementById('incCountMonth').value === 'next') { data.useNext = true; data.monthYear = addMonth(data.date.substring(0, 7), 1); }
+                if (gov) data.payRule = 'gov3';
                 const prevInc = currentEditId ? allTransactions.find(t => t.id === currentEditId) : null;
                 if (prevInc) {
                     if (data.recurring && prevInc.recurring) { data.seriesId = seriesOf(prevInc); if (prevInc.dueDay) data.dueDay = prevInc.dueDay; }
@@ -1208,6 +1246,7 @@
                     document.getElementById('incModalTitle').innerHTML = '<i class="ph-fill ph-plus-circle"></i> เพิ่มรายรับ';
                     document.getElementById('incSubmitBtn').textContent = "บันทึกรายรับ";
                     applyLastChoices();
+                    window.resetGovState(); document.getElementById('incCountMonth').disabled = false; window.autoGov();
                 }
                 if(id === 'expenseModal') {
                     document.getElementById('expenseForm').reset(); updateExpenseModeUI();
@@ -1401,6 +1440,9 @@
                 document.getElementById('incAmount').value = item.amount;
                 setSelect('incTaxRate', String(item.taxRate || 0), 'หัก ' + (item.taxRate || 0) + '%');
                 document.getElementById('incRecurring').checked = !!item.recurring;
+                document.getElementById('incGov3').checked = item.payRule === 'gov3';
+                document.getElementById('incCountMonth').value = item.useNext ? 'next' : 'same';
+                document.getElementById('incCountMonth').disabled = item.payRule === 'gov3';
                 document.getElementById('incNetAmountDisplay').textContent = formatMoney(item.netAmount);
                 document.getElementById('incModalTitle').innerHTML = '<i class="ph-fill ph-pencil-simple"></i> แก้ไขรายรับ';
                 document.getElementById('incSubmitBtn').textContent = "อัปเดตข้อมูล";
@@ -1895,11 +1937,12 @@
                     div.className = "row-card glass-card rounded-2xl p-4 flex justify-between items-center group";
 
                     if (t.type === 'income') {
+                        const useBadge = t.useNext ? `<span class="text-sky-600 bg-sky-50 px-1 rounded text-xs ml-1">รับก่อน · ใช้เดือนนี้</span>` : '';
                         const taxBadge = t.taxRate > 0 ? `<span class="text-yellow-600 bg-yellow-50 px-1 rounded text-xs ml-1">หัก ${t.taxRate}%</span>` : '';
                         div.innerHTML = `
                             <div class="flex items-center gap-3 min-w-0">
                                 <div class="bg-green-100 text-green-600 w-10 h-10 rounded-full hidden min-[420px]:flex items-center justify-center shrink-0"><i class="ph-bold ph-arrow-down-left text-xl"></i></div>
-                                <div class="min-w-0"><p class="font-medium text-gray-800 break-words">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500">${safeCat} • ${formatDate(t.date)} ${taxBadge}</p></div>
+                                <div class="min-w-0"><p class="font-medium text-gray-800 break-words">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500">${safeCat} • ${formatDate(t.date)} ${taxBadge}${useBadge}</p></div>
                             </div>
                             <div class="text-right flex items-center shrink-0">
                                 <div><p class="money font-bold text-green-600 mr-2">+${formatMoney(t.netAmount)}</p></div>
@@ -2103,6 +2146,19 @@
         // สร้างรหัสรายการใหม่ที่ไม่ซ้ำกับของเดิมแน่นอน (กันกดรัวๆ ในมิลลิวินาทีเดียวกัน)
         function newId() { let id; do { id = Date.now().toString() + Math.floor(Math.random() * 1000); } while (allTransactions.some(t => t.id === id)); return id; }
         const addMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; };
+        // วันเงินเดือนข้าราชการ: 3 วันทำการก่อนวันทำการสุดท้ายของเดือน (ข้ามเสาร์-อาทิตย์และวันหยุดราชการที่ตายตัว)
+        // วันหยุดที่เปลี่ยนทุกปี (วันพระใหญ่ วันชดเชย) แอปไม่รู้ จึงเป็นวันที่แนะนำ แก้ในช่องวันที่ได้เสมอ
+        const GOV_HOLIDAYS = ['01-01', '04-06', '04-13', '04-14', '04-15', '05-04', '06-03', '07-28', '08-12', '10-13', '10-23', '12-05', '12-10', '12-31'];
+        const isWorkday = (d) => { const w = d.getDay(); return w !== 0 && w !== 6 && !GOV_HOLIDAYS.includes(`${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`); };
+        function calcPayday(ym) {
+            const [y, m] = ym.split('-').map(Number);
+            const d = new Date(y, m, 0);                       // วันสุดท้ายของเดือน
+            while (!isWorkday(d)) d.setDate(d.getDate() - 1);   // วันทำการสุดท้าย
+            let n = 0;
+            while (n < 3) { d.setDate(d.getDate() - 1); if (isWorkday(d)) n++; }
+            return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+        }
+        window.calcPayday = calcPayday;
         const dateInMonth = (dateStr, ym) => {
             const [y, m] = ym.split('-').map(Number);
             const last = new Date(y, m, 0).getDate();
@@ -2188,20 +2244,31 @@
                     last = next;
                 }
             });
-            // รายรับประจำ (เช่น เงินเดือน): สร้างเดือนถัดไปให้เองจนถึงเดือนหน้า ใช้วันที่เดิมทุกเดือน
+            // รายรับประจำ (เช่น เงินเดือน): สร้างเดือนถัดไปให้เอง ใช้วันที่เดิมทุกเดือน
+            // หรือถ้าเป็นเงินเดือนข้าราชการ (payRule gov3) คำนวณ "3 วันทำการก่อนสิ้นเดือน" ของแต่ละเดือน
+            // date = วันที่รับเงินจริง, monthYear = เดือนที่นับเป็นรายรับ (useNext = เดือนถัดจากเดือนที่รับ)
             const igroups = {};
             allTransactions.forEach(t => { if (t.type === 'income' && t.recurring) (igroups[seriesOf(t)] = igroups[seriesOf(t)] || []).push(t); });
+            const todayYM = localDateStr().slice(0, 7);
             Object.entries(igroups).forEach(([key, list]) => {
                 list.sort(sortByMonthDate);
                 let last = list[list.length - 1];
                 if (!last || last.stopAuto) return;
                 for (;;) {
-                    const nextYM = addMonth(last.monthYear, 1);
-                    if (nextYM > horizon) break;
-                    const lastDay = Number(last.date.slice(8, 10)) || 1;
-                    const lastCap = new Date(Number(last.monthYear.slice(0, 4)), Number(last.monthYear.slice(5, 7)), 0).getDate();
-                    const dueDay = (last.dueDay && lastDay === Math.min(last.dueDay, lastCap)) ? last.dueDay : lastDay;
-                    const next = { ...last, seriesId: key, id: mkId(key, nextYM), dueDay, date: dateInMonth(`${nextYM}-${pad2(dueDay)}`, nextYM), monthYear: nextYM, autoGenerated: true, timestamp: Date.now() };
+                    const recvLast = last.date.slice(0, 7);
+                    const recvNext = addMonth(recvLast, 1);
+                    const gov = last.payRule === 'gov3';
+                    if (recvNext > (gov ? todayYM : horizon)) break;
+                    const nextYM = last.useNext ? addMonth(recvNext, 1) : recvNext;
+                    let date, dueDay;
+                    if (gov) { date = calcPayday(recvNext); dueDay = Number(date.slice(8, 10)); }
+                    else {
+                        const lastDay = Number(last.date.slice(8, 10)) || 1;
+                        const lastCap = new Date(Number(recvLast.slice(0, 4)), Number(recvLast.slice(5, 7)), 0).getDate();
+                        dueDay = (last.dueDay && lastDay === Math.min(last.dueDay, lastCap)) ? last.dueDay : lastDay;
+                        date = dateInMonth(`${recvNext}-${pad2(dueDay)}`, recvNext);
+                    }
+                    const next = { ...last, seriesId: key, id: mkId(key, recvNext), dueDay, date, monthYear: nextYM, autoGenerated: true, timestamp: Date.now() };
                     delete next.stopAuto; delete next.userEdited;
                     if (allTransactions.some(t => t.id === next.id)) break;
                     allTransactions.push(next);
@@ -2640,7 +2707,8 @@
             ['seriesId', 'autoGenerated', 'stopAuto', 'userEdited', 'recurring', 'dueDay'].forEach(k => delete copy[k]);
             const today = localDateStr();
             copy.id = newId();
-            copy.date = today; copy.monthYear = today.slice(0, 7); copy.timestamp = Date.now();
+            delete copy.payRule;
+            copy.date = today; copy.monthYear = copy.useNext ? addMonth(today.slice(0, 7), 1) : today.slice(0, 7); copy.timestamp = Date.now();
             if (copy.type === 'expense') { copy.isCompleted = false; copy.payMode = copy.payMode || 'normal'; }
             allTransactions.push(copy);
             persistData();
