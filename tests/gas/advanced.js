@@ -40,7 +40,9 @@ function startServer(env, port, slowMs = 0) {
   await ptr(card('e2'), 'pointerdown', 200, 300);
   for (let i = 1; i <= 3; i++) { await ptr(card('e2'), 'pointermove', 200 - i * 22, 300); await p.waitForTimeout(18); }
   await ptr(card('e2'), 'pointerup', 134, 300); await p.waitForTimeout(500);
-  ok(!(await recs()).some((t) => t.id === 'e2'), 'fast flick commits the delete even though it is short');
+  ok(await p.isVisible('#delConfirm'), 'fast flick opens the delete confirmation even though it is short');
+  await p.click('#delOk'); await p.waitForTimeout(500);
+  ok(!(await recs()).some((t) => t.id === 'e2'), 'fast flick commits the delete after confirming');
   await p.click('.toast-action'); await p.waitForTimeout(400);
   ok((await recs()).some((t) => t.id === 'e2'), 'and undo restores it');
   await ptr(card('e1'), 'pointerdown', 200, 300);

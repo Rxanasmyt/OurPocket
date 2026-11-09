@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.24.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.25.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -1308,7 +1308,7 @@
             const id = currentEditId;
             if (!id) return;
             window.closeModal();
-            window.deleteItem(id);
+            window.requestDelete(id);
         };
 
         window.editItem = (id, markPaid) => {
@@ -2377,8 +2377,8 @@
                 const commitRight = isExpense && (finalDx > 90 || (speed > 0.7 && finalDx > 40));
                 if (commitLeft) {
                     haptic(18);
-                    card.style.transform = 'translateX(-110%)';
-                    window.deleteItem(t.id);
+                    card.style.transform = 'translateX(-90px)';   // ค้างไว้ระหว่างรอยืนยันการลบ
+                    window.requestDelete(t.id, () => { card.style.transform = ''; });
                 } else if (commitRight) {
                     haptic(18);
                     card.style.transform = '';
@@ -2402,7 +2402,7 @@
             card.addEventListener('keydown', (e) => {
                 if (e.target !== card) return;
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.editItem(t.id); }
-                else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); window.deleteItem(t.id); }
+                else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); window.requestDelete(t.id); }
             });
             card.addEventListener('click', (e) => {
                 if (e.target.closest('button') || moved) return;
@@ -2430,7 +2430,7 @@
             if (kind === 'edit') window.editItem(id);
             else if (kind === 'paid') window.toggleStatus(id);
             else if (kind === 'dup') duplicateItem(id);
-            else if (kind === 'del') window.deleteItem(id);
+            else if (kind === 'del') window.requestDelete(id);
         };
         function duplicateItem(id) {
             const src = allTransactions.find(x => x.id === id);
@@ -2730,6 +2730,60 @@
         }
 
         window.toggleStatus = (id) => { const i = allTransactions.find(t=>t.id===id); if(i){ i.isCompleted = !i.isCompleted; i.timestamp = Date.now(); if (i.isCompleted) celebrateArmed = Date.now(); window.saveAndSync(i); } };
+        // ===== ยืนยันก่อนลบ: ถ้าตั้งรหัสผ่านซิงค์ไว้ ต้องพิมพ์รหัสให้ตรงก่อน (กันกดลบพลาด/คนอื่นหยิบมือถือไปลบ) =====
+        window.requestDelete = (id, onCancel) => {
+            const item = allTransactions.find(t => t.id === id);
+            if (!item) { if (onCancel) onCancel(); return; }
+            const old = document.getElementById('delConfirm'); if (old) old.remove();
+            const needKey = !!window.sheetsKey;
+            const amt = item.type === 'income' ? item.netAmount : item.amount;
+            const box = document.createElement('div');
+            box.id = 'delConfirm';
+            box.className = 'fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm';
+            box.setAttribute('role', 'alertdialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'delTitle');
+            box.innerHTML = `<form class="del-card bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6" autocomplete="off">
+                <div class="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center text-2xl mx-auto mb-3"><i class="ph-bold ph-trash"></i></div>
+                <h3 id="delTitle" class="text-lg font-bold text-center text-gray-800">ลบรายการนี้ใช่ไหม?</h3>
+                <p class="text-center text-sm text-gray-600 mt-1 break-words"><b>${escapeHTML(item.description || '(ไม่มีชื่อ)')}</b> · ${formatMoney(amt)}</p>
+                <p class="text-center text-xs text-gray-400 mt-1">จะถูกลบออกจาก Google Sheet ด้วย (เลิกทำได้ 6 วินาทีหลังลบ)</p>
+                ${needKey
+                    ? `<input type="password" id="delKeyInput" autocomplete="off" placeholder="ใส่รหัสผ่านเพื่อยืนยันการลบ" class="w-full mt-4 px-4 py-3 rounded-xl border border-gray-200 text-center"><p id="delKeyErr" class="text-xs text-red-500 text-center mt-1 min-h-[1rem]"></p>`
+                    : `<p class="text-[11px] text-amber-600 text-center mt-3">ยังไม่ได้ตั้งรหัสผ่านซิงค์ จึงถามแค่ยืนยัน (ตั้งรหัสได้ที่ปุ่มเฟือง)</p>`}
+                <div class="grid grid-cols-2 gap-3 mt-4">
+                    <button type="button" id="delCancel" class="py-3 rounded-xl font-medium text-gray-600 bg-gray-100">ยกเลิก</button>
+                    <button type="submit" id="delOk" class="py-3 rounded-xl font-medium text-white bg-red-500">ลบ</button>
+                </div>
+            </form>`;
+            document.body.appendChild(box);
+            let done = false;
+            const close = (cancelled) => {
+                if (done) return; done = true;
+                document.removeEventListener('keydown', onKey, true);
+                box.remove();
+                if (cancelled && onCancel) onCancel();
+            };
+            const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(true); } };
+            document.addEventListener('keydown', onKey, true);
+            box.addEventListener('click', (e) => { if (e.target === box) close(true); });
+            box.querySelector('#delCancel').onclick = () => close(true);
+            box.querySelector('form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (needKey) {
+                    const inp = box.querySelector('#delKeyInput');
+                    if (inp.value.trim() !== window.sheetsKey) {
+                        box.querySelector('#delKeyErr').textContent = inp.value.trim() ? 'รหัสผ่านไม่ถูกต้อง ลองอีกครั้ง' : 'กรุณาใส่รหัสผ่านก่อนลบ';
+                        inp.value = ''; inp.focus();
+                        const card = box.querySelector('.del-card'); card.classList.remove('shake'); void card.offsetWidth; if (!prefersReduced()) card.classList.add('shake');
+                        haptic(30);
+                        return;
+                    }
+                }
+                close(false);
+                window.deleteItem(id);
+            });
+            setTimeout(() => { const f = box.querySelector('#delKeyInput') || box.querySelector('#delCancel'); if (f) f.focus(); }, 30);
+        };
+
         window.deleteItem = (id) => {
             const idx = allTransactions.findIndex(t => t.id === id);
             if (idx < 0) return;

@@ -75,7 +75,9 @@ const seed = [
   await p.click('.toast-action:last-of-type'); await p.waitForTimeout(300);
   ok((await recs()).find((t) => t.id === 'e2').isCompleted === false, 'undo reverts the payment');
   await drag(rowSel('e2'), -130); await p.waitForTimeout(500);
-  ok(!(await recs()).some((t) => t.id === 'e2'), 'swipe left deletes immediately (no confirm dialog)');
+  ok((await recs()).some((t) => t.id === 'e2') && await p.isVisible('#delConfirm'), 'swipe left asks for confirmation first (nothing deleted yet)');
+  await p.click('#delOk'); await p.waitForTimeout(500);
+  ok(!(await recs()).some((t) => t.id === 'e2'), 'confirming deletes the item');
   await p.click('.toast-action'); await p.waitForTimeout(500);
   ok((await recs()).some((t) => t.id === 'e2') && await p.evaluate(() => !!document.querySelector('#transactionsList .swipe-row[data-id="e2"]')), 'undo brings the deleted item back (data + screen)');
 
