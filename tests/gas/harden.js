@@ -47,6 +47,17 @@ const seed = [{ id: 'e1', type: 'expense', date: M0 + '-05', monthYear: M0, cate
   const r2 = await mk((s) => { localStorage.setItem('ourWalletData', JSON.stringify([s[0]])); }, bill);
   const dates = await r2.p.evaluate(() => JSON.parse(localStorage.getItem('ourWalletData')).filter(t => t.description === 'ผ่อนมือถือ').map(t => t.date).sort());
   ok(dates.length >= 4 && dates.slice(1).every((d) => d.endsWith('-30') || d.endsWith('-31') || d.endsWith('-28')) && dates.includes('2026-10-31'), 'installment keeps day 31 (30 in short months): ' + dates.join(','));
+  console.log('== delete from edit modal ==');
+  const r3 = await mk((s) => { if (!localStorage.getItem('x')) { localStorage.setItem('x', '1'); localStorage.setItem('ourWalletData', JSON.stringify(s)); } });
+  await r3.p.evaluate(() => window.openModal('expenseModal')); await r3.p.waitForTimeout(400);
+  ok(await r3.p.evaluate(() => document.getElementById('expDeleteBtn').classList.contains('hidden')), 'no delete button when adding new');
+  await r3.p.evaluate(() => { window.closeModal(); }); await r3.p.waitForTimeout(400);
+  await r3.p.evaluate(() => window.editItem('e1')); await r3.p.waitForTimeout(500);
+  ok(await r3.p.isVisible('#expDeleteBtn'), 'delete button visible when editing');
+  await r3.p.click('#expDeleteBtn'); await r3.p.waitForTimeout(900);
+  ok(await r3.p.evaluate(() => !JSON.parse(localStorage.getItem('ourWalletData')).some((t) => t.id === 'e1')), 'record removed after tapping delete');
+  ok(await r3.p.evaluate(() => document.getElementById('modalContainer').classList.contains('hidden')), 'modal closed');
+  ok(r3.errs.length === 0, 'no page errors on delete');
   console.log(`\n${pass} passed, ${fail} failed`);
   await browser.close(); process.exit(fail ? 1 : 0);
 })();

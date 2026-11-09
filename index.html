@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.23.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.24.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -606,6 +606,7 @@
                         <span class="text-sm text-gray-600 font-medium">ยอดรับสุทธิ:</span><span id="incNetAmountDisplay" class="text-xl font-bold text-green-600">฿0.00</span>
                     </div>
                     <button type="submit" id="incSubmitBtn" class="submit-sticky sticky bottom-0 w-full py-3.5 rounded-xl font-medium text-white bg-green-500 hover:bg-green-600 shadow-lg shadow-green-200">บันทึกรายรับ</button>
+                    <button type="button" id="incDeleteBtn" onclick="window.deleteFromModal()" class="hidden w-full mt-2 py-3 rounded-xl font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 items-center justify-center gap-2"><i class="ph-bold ph-trash"></i> ลบรายรับนี้</button>
                 </form>
             </div>
         </div>
@@ -680,6 +681,7 @@
                         <label for="expCompleted" class="text-sm font-medium text-gray-700">จ่ายแล้วเรียบร้อย</label>
                     </div>
                     <button type="submit" id="expSubmitBtn" class="submit-sticky sticky bottom-0 w-full py-3.5 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200">บันทึกรายจ่าย</button>
+                    <button type="button" id="expDeleteBtn" onclick="window.deleteFromModal()" class="hidden w-full mt-2 py-3 rounded-xl font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 items-center justify-center gap-2"><i class="ph-bold ph-trash"></i> ลบรายจ่ายนี้</button>
                 </form>
             </div>
         </div>
@@ -1118,6 +1120,8 @@
             }
             if (id === 'copyBillsModal') renderCopyBillsModal();
 
+            // ปุ่มลบจะแสดงเฉพาะตอนแก้ไขรายการที่มีอยู่
+            ['inc', 'exp'].forEach(pr => { const b = document.getElementById(pr + 'DeleteBtn'); if (b) { b.classList.toggle('hidden', !currentEditId); b.classList.toggle('flex', !!currentEditId); } });
             if(!currentEditId) {
                 if(id === 'incomeModal') {
                     document.getElementById('incomeForm').reset();
@@ -1297,6 +1301,14 @@
             renderDashboard();
             if(addedCount > 0) window.showToast(`คัดลอก ${addedCount} รายการสำเร็จ!`);
             else window.showToast("รายการเหล่านี้ถูกคัดลอกมาแล้วครับ", "error");
+        };
+
+        // ลบจากในหน้าแก้ไข: ปิดหน้าต่างแล้วลบทันที (เลิกทำได้ 6 วินาทีจากข้อความแจ้งเตือน)
+        window.deleteFromModal = () => {
+            const id = currentEditId;
+            if (!id) return;
+            window.closeModal();
+            window.deleteItem(id);
         };
 
         window.editItem = (id, markPaid) => {
