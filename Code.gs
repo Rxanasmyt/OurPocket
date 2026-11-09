@@ -26,7 +26,7 @@ var SHEET_PLAN = 'ลำดับจ่าย';
 var SHEET_MONTH = 'รายเดือน';
 var SHEET_SET = 'ตั้งค่า';
 var SHEET_FILTER = 'ค้นหา';
-var SETUP_VERSION = 'v11';
+var SETUP_VERSION = 'v12';
 // API_VERSION: เพิ่มทุกครั้งที่รูปแบบการคุยกับแอปเปลี่ยน (แอปจะไม่ส่งข้อมูลถ้าสคริปต์เก่ากว่าที่แอปต้องการ)
 var API_VERSION = 8;
 var SCRIPT_VERSION = 'Our Wallet script v' + API_VERSION;
@@ -1120,6 +1120,15 @@ function buildFilter_(ss) {
   sh.getRange('D2').setValue('เลือกเงื่อนไขได้หลายช่องพร้อมกัน ตารางด้านล่างเปลี่ยนตามทันที').setFontColor('#9ca3af').setFontSize(9);
   sh.getRange('D3').setValue('ตั้งช่องใดเป็น "ทั้งหมด" = ไม่กรองช่องนั้น (เดือนพิมพ์ ทั้งหมด หรือเลือก yyyy-MM)').setFontColor('#9ca3af').setFontSize(9);
   sh.getRange('D8').setValue('พิมพ์บางส่วนของชื่อรายการ เช่น ไฟ, ผ่อน').setFontColor('#9ca3af').setFontSize(9);
+
+  // ลิงก์ลัดไปแท็บอื่น
+  try {
+    var links = [['D5', SHEET_DASH, '⬅ กลับหน้าสรุป'], ['D6', SHEET_PLAN, '📋 ดูลำดับจ่าย'], ['D7', SHEET_MONTH, '📅 ดูรายเดือน']];
+    links.forEach(function (l) {
+      var target = ss.getSheetByName(l[1]);
+      if (target) sh.getRange(l[0]).setFormula('=HYPERLINK("#gid=' + target.getSheetId() + '","' + l[2] + '")').setFontColor('#0369a1').setFontWeight('bold');
+    });
+  } catch (err) {}
 
   var kpis = [
     {r: 'F4:G4', v: 'F5:G5', label: 'รายรับ', color: COLOR_INCOME, f: '=SUMIF($B$12:$B$340,"รายรับ",$H$12:$H$340)'},

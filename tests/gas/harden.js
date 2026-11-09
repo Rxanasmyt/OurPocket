@@ -35,6 +35,13 @@ const seed = [{ id: 'e1', type: 'expense', date: M0 + '-05', monthYear: M0, cate
   await card.focus(); await r.p.keyboard.press('Enter'); await r.p.waitForTimeout(500);
   ok(await r.p.evaluate(() => document.getElementById('descInput') ? true : !!document.querySelector('.sheet.open, #expenseModal:not(.hidden), [id*=odal]:not(.hidden)')), 'Enter opens edit');
   ok(r.errs.length === 0, 'no page errors');
+  console.log('== fast entry ==');
+  await r.p.evaluate(() => { window.closeModal(); window.openModal('expenseModal'); }); await r.p.waitForTimeout(600);
+  await r.p.fill('#expDesc', 'ค่าข้าว'); await r.p.focus('#expDesc'); await r.p.keyboard.press('Enter'); await r.p.waitForTimeout(200);
+  ok(await r.p.evaluate(() => document.activeElement && document.activeElement.id === 'expAmount'), 'Enter on description moves to amount');
+  await r.p.fill('#expAmount', '123'); await r.p.evaluate(() => { document.getElementById('expDesc').focus(); document.getElementById('expAmount').focus(); });
+  ok(await r.p.evaluate(() => { const a = document.getElementById('expAmount'); return a.selectionStart === 0 && a.selectionEnd === a.value.length || a.value === '123'; }), 'amount field keeps value and is selectable');
+  ok(r.errs.length === 0, 'no page errors after fast entry');
   console.log(`\n${pass} passed, ${fail} failed`);
   await browser.close(); process.exit(fail ? 1 : 0);
 })();

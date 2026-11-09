@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.21.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.22.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -990,7 +990,7 @@
             setTimeout(() => {
                 const ov = document.getElementById('loadingOverlay');
                 ov.style.opacity = '0'; ov.style.pointerEvents = 'none';
-                initReveal();   // ให้ส่วนต่างๆ ปรากฏหลังหน้าโหลดจางหาย
+                initReveal(); initFastEntry();   // ให้ส่วนต่างๆ ปรากฏหลังหน้าโหลดจางหาย
                 setTimeout(() => ov.style.display = 'none', 350);
             }, 300);
         }
@@ -2224,6 +2224,21 @@
         };
 
         // ===== เอฟเฟกต์ระดับแอปทางการ: เลื่อนถึงแล้วค่อยปรากฏ / สั่นเมื่อกรอกผิด / ติ๊กถูกเมื่อบันทึกสำเร็จ =====
+        // กรอกเร็ว: กด Enter/ถัดไปที่ช่องรายละเอียดแล้วเด้งไปช่องจำนวนเงิน และแตะช่องตัวเลขแล้วเลือกทั้งหมดให้พิมพ์ทับได้เลย
+        function initFastEntry() {
+            [['expDesc', 'expAmount'], ['incDesc', 'incAmount']].forEach(([from, to]) => {
+                const f = document.getElementById(from), t = document.getElementById(to);
+                if (!f || !t) return;
+                f.setAttribute('enterkeyhint', 'next');
+                f.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && f.value.trim() && !t.value) { e.preventDefault(); t.focus(); }
+                });
+            });
+            document.addEventListener('focusin', (e) => {
+                const el = e.target;
+                if (el && el.tagName === 'INPUT' && el.type === 'number' && el.value) { try { el.select(); } catch (err) {} }
+            });
+        }
         function initReveal() {
             window.__revealReady = true;
             const els = [...document.querySelectorAll('.reveal')];
