@@ -26,7 +26,7 @@ var SHEET_PLAN = 'ลำดับจ่าย';
 var SHEET_MONTH = 'รายเดือน';
 var SHEET_SET = 'ตั้งค่า';
 var SHEET_FILTER = 'ค้นหา';
-var SETUP_VERSION = 'v9';
+var SETUP_VERSION = 'v10';
 // API_VERSION: เพิ่มทุกครั้งที่รูปแบบการคุยกับแอปเปลี่ยน (แอปจะไม่ส่งข้อมูลถ้าสคริปต์เก่ากว่าที่แอปต้องการ)
 var API_VERSION = 8;
 var SCRIPT_VERSION = 'Our Wallet script v' + API_VERSION;
@@ -707,6 +707,12 @@ function buildDashboard_(ss) {
   sh.getRange('B11:D22').setNumberFormat('#,##0').setHorizontalAlignment('right');
   sh.getRange('B11:B22').setFontColor('#047857');
   sh.getRange('C11:C22').setFontColor('#b91c1c');
+  // แถบความเข้มสี (heatmap): เดือนที่รายรับ/รายจ่ายสูงสีจะเข้มขึ้น เห็นภาพรวมทันทีโดยไม่ต้องอ่านตัวเลข
+  sh.setConditionalFormatRules([
+    SpreadsheetApp.newConditionalFormatRule().setGradientMinpoint('#ffffff').setGradientMaxpoint('#a7f3d0').setRanges([sh.getRange('B11:B22')]).build(),
+    SpreadsheetApp.newConditionalFormatRule().setGradientMinpoint('#ffffff').setGradientMaxpoint('#fecaca').setRanges([sh.getRange('C11:C22')]).build(),
+    SpreadsheetApp.newConditionalFormatRule().setGradientMinpoint('#ffffff').setGradientMaxpoint('#fed7aa').setRanges([sh.getRange('G11:G17')]).build()
+  ]);
   sh.getRange('A11:D22').setBorder(null, null, true, null, null, true, '#fce7eb', SpreadsheetApp.BorderStyle.SOLID);
 
   // ตารางที่ 2: รายจ่ายตามหมวด
