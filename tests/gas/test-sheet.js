@@ -154,5 +154,15 @@ ok(fz.post({ ...rec.normal, id: 'f1', description: '=HYPERLINK("http://x","y")' 
 const fdata = fz.ss.getSheetByName('รายการ');
 ok(fdata.getRange(2, 5).getValue() === '=HYPERLINK("http://x","y")', 'stored as the literal text');
 
+console.log('== sheet tabs are owner-only ==');
+const po = makeEnv({ sheets: ['Sheet1'] });
+po.post(rec.income);
+['สรุป', 'ลำดับจ่าย', 'รายเดือน', 'ค้นหา', 'รายการ', 'ตั้งค่า'].forEach((n) => {
+  const recs = po.ss.getSheetByName(n).protectRecs || [];
+  const last = recs[recs.length - 1];
+  ok(!!last && last.removed.includes('phada@example.com') && !last.removed.includes('owner@example.com') && !last.calls.includes('warningOnly:true'), 'tab "' + n + '": other editors removed, owner kept, not warning-only');
+});
+ok(po.post({ ...rec.normal, id: 'o1' }).status === 'success', 'app can still write after tabs are locked');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

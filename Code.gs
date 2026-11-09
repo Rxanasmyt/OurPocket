@@ -8,6 +8,7 @@
 //    "รายการ"     ข้อมูลทั้งหมดที่แอปบันทึก (แก้ในแอป ไม่ต้องแก้ในชีต)
 //    "ตั้งค่า"     งบประมาณรายเดือน
 //
+//  สิทธิ์แก้ไข: ทุกแท็บล็อกให้เจ้าของไฟล์เท่านั้นที่แก้ได้ ต้อง Deploy แบบ "ดำเนินการในฐานะ: ฉัน (เจ้าของ)" เพื่อให้แอปบันทึกได้
 //  ความปลอดภัย: Project Settings > Script properties > เพิ่ม WALLET_KEY = รหัสของคุณ
 //    แล้วใส่รหัสเดียวกันในแอป (ปุ่มเฟือง). ถ้าไม่ตั้ง ใครรู้ URL ก็อ่าน/เขียนข้อมูลได้
 //
@@ -26,7 +27,7 @@ var SHEET_PLAN = 'ลำดับจ่าย';
 var SHEET_MONTH = 'รายเดือน';
 var SHEET_SET = 'ตั้งค่า';
 var SHEET_FILTER = 'ค้นหา';
-var SETUP_VERSION = 'v12';
+var SETUP_VERSION = 'v13';
 // API_VERSION: เพิ่มทุกครั้งที่รูปแบบการคุยกับแอปเปลี่ยน (แอปจะไม่ส่งข้อมูลถ้าสคริปต์เก่ากว่าที่แอปต้องการ)
 var API_VERSION = 8;
 var SCRIPT_VERSION = 'Our Wallet script v' + API_VERSION;
@@ -432,7 +433,7 @@ function ensureSetup_(ss) {
   step('format', function () { formatDataSheet_(dataSheet); });
   step('cleanup', function () { purgeJunkRows_(dataSheet); });
   step('refresh', function () { refreshRows_(dataSheet); });
-  step('settings', function () { ensureSettingsSheet_(ss); });
+  step('settings', function () { protectOwner_(ensureSettingsSheet_(ss), 'งบประมาณ: ตั้งในแอป Our Wallet (เจ้าของไฟล์เท่านั้นที่แก้ในชีตได้)', null); });
   step('dashboard', function () { buildDashboard_(ss); });
   step('plan', function () { buildPlan_(ss); });
   step('monthly', function () { buildMonthly_(ss); });
@@ -568,12 +569,8 @@ function formatDataSheet_(sh) {
   sh.getRange(1, 1, n, cols).createFilter();
   for (var h = 0; h < hidden.length; h++) sh.hideColumns(hidden[h]);
 
-  // เตือนก่อนแก้มือ (สคริปต์ยังเขียนได้ปกติ): ข้อมูลจริงอยู่ที่ RAW_JSON ให้แก้ในแอป
-  try {
-    var prots = sh.getProtections(SpreadsheetApp.ProtectionType.SHEET);
-    for (var p = 0; p < prots.length; p++) prots[p].remove();
-    sh.protect().setWarningOnly(true).setDescription('แก้ข้อมูลในแอป Our Wallet แทน (แอปอ่านจากคอลัมน์ RAW_JSON)');
-  } catch (err) {}
+  // เจ้าของไฟล์เท่านั้นที่แก้ได้: ข้อมูลจริงอยู่ที่ RAW_JSON ให้แก้/ลบในแอป Our Wallet
+  protectOwner_(sh, 'แก้/ลบข้อมูลในแอป Our Wallet (แอปอ่านจากคอลัมน์ RAW_JSON) เจ้าของไฟล์เท่านั้นที่แก้ในชีตได้', null);
 }
 
 // ------------------------------------------------------------
@@ -596,13 +593,32 @@ function resetSheet_(ss, name) {
   return sh;
 }
 
-// เตือนก่อนแก้มือ (สคริปต์ยังเขียนได้ปกติ) โดยเว้นช่องที่ผู้ใช้ต้องกรอก เช่น ช่องเลือกเดือน
-function protectWarn_(sh, description, unprotectedRanges) {
+// ล็อกแท็บให้เจ้าของไฟล์เท่านั้นที่แก้ได้ (คนอื่นเปิดดูได้อย่างเดียว) สคริปต์รันในนามเจ้าของจึงยังบันทึกจากแอปได้ปกติ
+// ช่องที่ผู้ใช้ต้องกรอก (เช่น ช่องเลือกเดือน) ใส่ใน unprotectedRanges ถ้าล็อกเจ้าของเท่านั้นไม่สำเร็จ จะถอยกลับเป็นแบบเตือนก่อนแก้
+function protectOwner_(sh, description, unprotectedRanges) {
   try {
-    var p = sh.protect().setWarningOnly(true).setDescription(description);
-    if (unprotectedRanges && unprotectedRanges.length) p.setUnprotectedRanges(unprotectedRanges);
+    var prots = sh.getProtections(SpreadsheetApp.ProtectionType.SHEET);
+    for (var i = 0; i < prots.length; i++) prots[i].remove();
   } catch (e) {}
+  var p;
+  try {
+    p = sh.protect().setDescription(description);
+    if (unprotectedRanges && unprotectedRanges.length) p.setUnprotectedRanges(unprotectedRanges);
+  } catch (e) { return false; }
+  try {
+    var me = Session.getEffectiveUser();
+    p.addEditor(me);
+    var eds = p.getEditors();
+    for (var k = 0; k < eds.length; k++) if (eds[k].getEmail() !== me.getEmail()) p.removeEditor(eds[k]);
+    if (p.canDomainEdit()) p.setDomainEdit(false);
+    return true;
+  } catch (e) {
+    try { p.setWarningOnly(true); } catch (e2) {}
+    return false;
+  }
 }
+// ชื่อเดิมที่ทุกแท็บเรียกใช้: ตอนนี้ล็อกเจ้าของเท่านั้น
+function protectWarn_(sh, description, unprotectedRanges) { return protectOwner_(sh, description, unprotectedRanges); }
 
 function ensureSize_(sh, rows, cols) {
   if (sh.getMaxRows() < rows) sh.insertRowsAfter(sh.getMaxRows(), rows - sh.getMaxRows());

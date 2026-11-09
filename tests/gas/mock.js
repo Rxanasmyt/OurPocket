@@ -52,7 +52,13 @@ class Sheet {
   getBandings() { return []; }
   getFilter() { return null; }
   getProtections() { return []; }
-  protect() { this.protections++; return swallow({}); }
+  protect() {
+    this.protections++;
+    const rec = { calls: [], removed: [], editors: [{ getEmail: () => 'owner@example.com' }, { getEmail: () => 'phada@example.com' }] };
+    (this.protectRecs = this.protectRecs || []).push(rec);
+    const o = { getEditors: () => rec.editors, removeEditor(e) { rec.removed.push(e.getEmail()); return o; }, canDomainEdit: () => false, addEditor() { rec.calls.push('addEditor'); return o; }, setWarningOnly(v) { rec.calls.push('warningOnly:' + v); return o; } };
+    return swallow(o);
+  }
   clear() { this.cells.clear(); this.formulas.clear(); }
   hideColumns(c, n) { for (let i = 0; i < (n || 1); i++) this.hidden.add(c + i); }
   showColumns() { this.hidden.clear(); }
@@ -101,6 +107,7 @@ function makeEnv(opts = {}) {
     LockService: { getScriptLock: () => ({ waitLock() { if (opts.lockFail) throw new Error('Could not obtain lock'); }, releaseLock() {} }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props.has(k) ? props.get(k) : null), setProperty: (k, v) => props.set(k, v), deleteProperty: (k) => props.delete(k) }) },
     Utilities: { formatDate: (d, tz, f) => { const t = new Date(d.getTime() + 7 * 3600e3); return f.replace('yyyy', t.getUTCFullYear()).replace('MM', pad(t.getUTCMonth() + 1)).replace('dd', pad(t.getUTCDate())).replace('HH', pad(t.getUTCHours())).replace('mm', pad(t.getUTCMinutes())).replace('ss', pad(t.getUTCSeconds())); } },
+    Session: { getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) },
     Logger: { log() {} }
   };
   vm.createContext(ctx);
