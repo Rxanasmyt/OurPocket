@@ -146,5 +146,13 @@ ok(lockRes.code === 'lock_timeout' && lockRes.message.includes('ลองให�
 ok(lk.post({ action: 'sync' }).status === 'success', 'reads still work when lock is busy');
 ok(env.get({}).includes('Our Wallet script v8'), 'GET shows API version string the app checks: ' + env.get({}));
 
+console.log('== user text must never become a formula ==');
+const src = require('fs').readFileSync(__dirname + '/../../Code.gs', 'utf8');
+['หมวดหมู่', 'รายการ', 'คนทำรายการ', 'ธนาคาร', 'ID'].forEach((h) => ok(new RegExp("\\{h: '" + h + "', w: \\d+, fmt: '@'").test(src), 'text column "' + h + '" is formatted as plain text'));
+const fz = makeEnv({ sheets: ['Sheet1'] });
+ok(fz.post({ ...rec.normal, id: 'f1', description: '=HYPERLINK("http://x","y")' }).status === 'success', 'description starting with = is accepted');
+const fdata = fz.ss.getSheetByName('รายการ');
+ok(fdata.getRange(2, 5).getValue() === '=HYPERLINK("http://x","y")', 'stored as the literal text');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

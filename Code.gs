@@ -26,7 +26,7 @@ var SHEET_PLAN = 'ลำดับจ่าย';
 var SHEET_MONTH = 'รายเดือน';
 var SHEET_SET = 'ตั้งค่า';
 var SHEET_FILTER = 'ค้นหา';
-var SETUP_VERSION = 'v8';
+var SETUP_VERSION = 'v9';
 // API_VERSION: เพิ่มทุกครั้งที่รูปแบบการคุยกับแอปเปลี่ยน (แอปจะไม่ส่งข้อมูลถ้าสคริปต์เก่ากว่าที่แอปต้องการ)
 var API_VERSION = 8;
 var SCRIPT_VERSION = 'Our Wallet script v' + API_VERSION;
@@ -68,16 +68,16 @@ var SCHEMA = [
   {h: 'ประเภท', w: 80, align: 'center', get: function (d) { return isIncome_(d) ? 'รายรับ' : 'รายจ่าย'; }},
   {h: 'วันที่', w: 100, fmt: '@', align: 'center', get: function (d) { return d.date || '-'; }},
   {h: 'เดือน-ปี', w: 80, fmt: '@', align: 'center', get: function (d) { return d.monthYear || '-'; }},
-  {h: 'หมวดหมู่', w: 110, align: 'center', get: function (d) { return d.category || '-'; }},
-  {h: 'รายการ', w: 240, get: function (d) { return d.description || '-'; }},
-  {h: 'คนทำรายการ', w: 100, align: 'center', get: function (d) { return d.who || '-'; }},
-  {h: 'ธนาคาร', w: 100, align: 'center', get: function (d) { return isIncome_(d) ? '-' : (d.bank || '-'); }},
+  {h: 'หมวดหมู่', w: 110, fmt: '@', align: 'center', get: function (d) { return d.category || '-'; }},
+  {h: 'รายการ', w: 240, fmt: '@', get: function (d) { return d.description || '-'; }},
+  {h: 'คนทำรายการ', w: 100, fmt: '@', align: 'center', get: function (d) { return d.who || '-'; }},
+  {h: 'ธนาคาร', w: 100, fmt: '@', align: 'center', get: function (d) { return isIncome_(d) ? '-' : (d.bank || '-'); }},
   {h: 'งวดที่', w: 70, fmt: '0', align: 'center', get: function (d) { return isIncome_(d) ? '' : numOrBlank_(d.currentInstallment); }},
   {h: 'รวมงวด', w: 80, fmt: '0', align: 'center', get: function (d) { return isIncome_(d) ? '' : numOrBlank_(d.totalInstallments); }},
   {h: 'จำนวนเงิน', w: 120, fmt: '#,##0.00', align: 'right', bold: true, get: function (d) { return Number(isIncome_(d) ? d.netAmount : d.amount) || 0; }},
   {h: 'สถานะ', w: 120, align: 'center', get: function (d) { return isIncome_(d) ? '-' : (d.isCompleted ? 'เสร็จสิ้น' : 'รอดำเนินการ'); }},
   {h: 'บันทึกเมื่อ', w: 150, fmt: '@', align: 'center', color: '#9ca3af', get: function (d, old) { return old ? old : nowText_(); }},
-  {h: 'ID', w: 120, hidden: true, get: function (d) { return d.id || '-'; }},
+  {h: 'ID', w: 120, fmt: '@', hidden: true, get: function (d) { return d.id || '-'; }},
   {h: 'RAW_JSON', w: 120, hidden: true, get: function (d) { return JSON.stringify(d); }},
   {h: 'รูปแบบการจ่าย', w: 170, align: 'center', get: function (d) { return payModeLabel_(d); }},
   {h: 'ยอดเต็มบิล', w: 110, fmt: '#,##0.00', align: 'right', get: function (d) { return d.payMode === 'minpay' ? numOrBlank_(d.fullAmount) : ''; }},
