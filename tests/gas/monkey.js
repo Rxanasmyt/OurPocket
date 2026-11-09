@@ -22,6 +22,7 @@ const issuesAll = [];
     const set = (id, v) => { const e = document.getElementById(id); if (!e) return; e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); };
     if (x.kind === 'income') {
       window.openModal('incomeModal'); set('incDesc', x.desc); set('incAmount', x.amount); set('incTaxRate', x.tax); set('incCategory', x.cat); set('incWho', x.who); set('incDate', x.date);
+      if (x.recurring) document.getElementById('incRecurring').checked = true;
       document.getElementById('incomeForm').requestSubmit();
     } else {
       window.openModal('expenseModal'); set('expDesc', x.desc); set('expWho', x.who); set('expBank', x.bank); set('expDueDate', x.date); set('expPayMode', x.mode);
@@ -57,6 +58,12 @@ const issuesAll = [];
     () => act('close', () => ev(() => window.closeModal())),
     () => act('budget', () => ev((v) => { window.openModal('budgetModal'); document.getElementById('budgetInput').value = v; window.saveBudget(); }, pick(['', '0', '1000', '50000']))),
     () => act('copyBills', () => ev(() => { window.shiftMonth(1); setTimeout(() => { window.openModal('copyBillsModal'); document.querySelectorAll('.copy-bill-checkbox').forEach((c) => (c.checked = true)); window.submitCopyBills(); }, 300); })),
+    () => act('addRecurIncome', () => fillForm('income', { desc: 'เงินเดือนประจำ' + int(1, 2), amount: int(1000, 40000), tax: pick(['0', '3']), cat: 'เงินเดือน', who: pick(['Anas', 'Phada']), date: dateIn(), recurring: true })),
+    () => act('who', () => ev((w) => window.setWho(w), pick(['Anas', 'Phada', '']))),
+    () => act('bankFilter', () => ev((v) => { const sel = document.getElementById('bankFilter'); if ([...sel.options].some((o) => o.value === v)) { sel.value = v; sel.dispatchEvent(new Event('change')); } }, pick(['', 'เงินสด', 'KBank', 'SCB', 'กรุงศรี']))),
+    () => act('clearFilters', () => ev(() => window.clearFilters())),
+    async () => { const id = await randId(); if (id) await act('requestDelete', () => ev((i) => window.requestDelete(i), id)); },
+    () => act('delAnswer', () => ev((ok) => { const b = document.getElementById(ok ? 'delOk' : 'delCancel'); if (b) b.click(); }, rnd() < 0.5)),
     () => act('reload', async () => { await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(1200); })
   ];
 
@@ -74,6 +81,8 @@ const issuesAll = [];
         if (t.type === 'income' && !(Number(t.netAmount) >= 0)) out.push('bad net ' + t.id);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date || '') || (t.monthYear || '') !== (t.date || '').slice(0, 7)) out.push('date/month mismatch ' + t.id + ' ' + t.date + ' ' + t.monthYear);
       });
+      const ser = new Set();
+      data.filter((t) => t.type === 'income' && t.seriesId).forEach((t) => { const k = t.seriesId + '|' + t.monthYear; if (ser.has(k)) out.push('two recurring incomes in the same month ' + k); ser.add(k); });
       const txt = document.body.innerText;
       const bad = txt.match(/.{0,25}(NaN|undefined|\[object|Infinity).{0,25}/);
       if (bad) out.push('bad text: ' + bad[0].replace(/\n/g, ' '));
