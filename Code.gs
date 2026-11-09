@@ -27,7 +27,7 @@ var SHEET_PLAN = 'ลำดับจ่าย';
 var SHEET_MONTH = 'รายเดือน';
 var SHEET_SET = 'ตั้งค่า';
 var SHEET_FILTER = 'ค้นหา';
-var SETUP_VERSION = 'v15';
+var SETUP_VERSION = 'v16';
 // API_VERSION: เพิ่มทุกครั้งที่รูปแบบการคุยกับแอปเปลี่ยน (แอปจะไม่ส่งข้อมูลถ้าสคริปต์เก่ากว่าที่แอปต้องการ)
 var API_VERSION = 8;
 var SCRIPT_VERSION = 'Our Wallet script v' + API_VERSION;
@@ -97,7 +97,10 @@ var SCHEMA = [
   {h: 'รับประจำ', w: 90, align: 'center', get: function (d) { return (isIncome_(d) && d.recurring) ? 'ทุกเดือน' : ''; }},
   // ---- เพิ่มใน v15 ----
   // เงินเดือนที่รับปลายเดือนแต่ใช้จ่ายเดือนถัดไป: วันที่ = วันที่รับจริง, เดือน-ปี = เดือนที่นับเป็นรายรับ
-  {h: 'นับเป็นเดือนถัดไป', w: 110, align: 'center', get: function (d) { return (isIncome_(d) && d.useNext) ? 'ใช่' : ''; }}
+  {h: 'นับเป็นเดือนถัดไป', w: 110, align: 'center', get: function (d) { return (isIncome_(d) && d.useNext) ? 'ใช่' : ''; }},
+  // ---- เพิ่มใน v16 ----
+  // เงินประจำเดือน (เช่น เงินเดือนของ 2026-10) ไว้ตรวจย้อนหลัง: รับได้ตั้งแต่วันที่ 25 ของเดือนนั้นถึงวันที่ 20 ของเดือนถัดไป
+  {h: 'เงินประจำเดือน', w: 110, fmt: '@', align: 'center', get: function (d) { return (isIncome_(d) && d.periodMonth) ? String(d.periodMonth) : ''; }}
 ];
 
 // ------------------------------------------------------------

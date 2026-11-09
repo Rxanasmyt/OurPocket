@@ -21,7 +21,7 @@ const issuesAll = [];
   const fillForm = (kind, o) => ev((x) => {
     const set = (id, v) => { const e = document.getElementById(id); if (!e) return; e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); };
     if (x.kind === 'income') {
-      window.openModal('incomeModal'); set('incCountMonth', x.cm || 'auto'); set('incDesc', x.desc); set('incAmount', x.amount); set('incTaxRate', x.tax); set('incCategory', x.cat); set('incWho', x.who); set('incDate', x.date);
+      window.openModal('incomeModal'); set('incDesc', x.desc); set('incAmount', x.amount); set('incTaxRate', x.tax); set('incCategory', x.cat); set('incWho', x.who); set('incDate', x.date); if (x.pi !== undefined) { const o = [...document.getElementById('incPeriod').options]; if (o.length) set('incPeriod', o[x.pi % o.length].value); }
       if (x.recurring) document.getElementById('incRecurring').checked = true;
       document.getElementById('incomeForm').requestSubmit();
     } else {
@@ -58,7 +58,7 @@ const issuesAll = [];
     () => act('close', () => ev(() => window.closeModal())),
     () => act('budget', () => ev((v) => { window.openModal('budgetModal'); document.getElementById('budgetInput').value = v; window.saveBudget(); }, pick(['', '0', '1000', '50000']))),
     () => act('copyBills', () => ev(() => { window.shiftMonth(1); setTimeout(() => { window.openModal('copyBillsModal'); document.querySelectorAll('.copy-bill-checkbox').forEach((c) => (c.checked = true)); window.submitCopyBills(); }, 300); })),
-    () => act('addRecurIncome', () => fillForm('income', { desc: 'เงินเดือนประจำ' + int(1, 2), amount: int(1000, 40000), tax: pick(['0', '3']), cat: 'เงินเดือน', who: pick(['Anas', 'Phada']), date: dateIn(), recurring: true, cm: pick(['auto', 'same', 'next']) })),
+    () => act('addRecurIncome', () => fillForm('income', { desc: 'เงินเดือนประจำ' + int(1, 2), amount: int(1000, 40000), tax: pick(['0', '3']), cat: 'เงินเดือน', who: pick(['Anas', 'Phada']), date: dateIn(), recurring: true, pi: int(0, 12) })),
     () => act('who', () => ev((w) => window.setWho(w), pick(['Anas', 'Phada', '']))),
     () => act('bankFilter', () => ev((v) => { const sel = document.getElementById('bankFilter'); if ([...sel.options].some((o) => o.value === v)) { sel.value = v; sel.dispatchEvent(new Event('change')); } }, pick(['', 'เงินสด', 'KBank', 'SCB', 'กรุงศรี']))),
     () => act('clearFilters', () => ev(() => window.clearFilters())),
@@ -80,7 +80,7 @@ const issuesAll = [];
         seen.add(t.id);
         if (t.type === 'expense' && !(Number(t.amount) >= 0)) out.push('bad amount ' + t.id + ' ' + t.amount);
         if (t.type === 'income' && !(Number(t.netAmount) >= 0)) out.push('bad net ' + t.id);
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date || '') || (t.monthYear || '') !== (t.useNext ? nextYm((t.date || '').slice(0, 7)) : (t.date || '').slice(0, 7))) out.push('date/month mismatch ' + t.id + ' ' + t.date + ' ' + t.monthYear);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date || '') || (t.monthYear || '') !== (t.periodMonth ? nextYm(t.periodMonth) : (t.useNext ? nextYm((t.date || '').slice(0, 7)) : (t.date || '').slice(0, 7)))) out.push('date/month mismatch ' + t.id + ' ' + t.date + ' ' + t.monthYear);
       });
       const ser = new Set();
       data.filter((t) => t.type === 'income' && t.seriesId).forEach((t) => { const k = t.seriesId + '|' + t.monthYear; if (ser.has(k)) out.push('two recurring incomes in the same month ' + k); ser.add(k); });
