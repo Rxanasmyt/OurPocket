@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.26.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.27.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -108,6 +108,29 @@
         /* แถบงบ: ใกล้หมด/เกินงบ มีลายทแยงวิ่งเตือนให้สะดุดตา */
         #budgetProgressBar.bg-yellow-400, #budgetProgressBar.bg-red-500 { background-image: linear-gradient(135deg, rgba(255,255,255,0.38) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.38) 50%, rgba(255,255,255,0.38) 75%, transparent 75%); background-size: 14px 14px; animation: barStripe 0.9s linear infinite; }
         @keyframes barStripe { to { background-position: 14px 0; } }
+        /* ===== หน้าต่างยืนยันลบ / แถบเตือน / ปุ่มบันทึก / ช่องที่ผิด / สถานะซิงค์ / การ์ดแยกคน ===== */
+        @keyframes delBack { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes delBackOut { to { opacity: 0; } }
+        @keyframes delCard { from { opacity: 0; transform: translateY(18px) scale(0.92); } to { opacity: 1; transform: none; } }
+        @keyframes delCardOut { to { opacity: 0; transform: translateY(10px) scale(0.96); } }
+        #delConfirm { animation: delBack 0.2s ease both; }
+        #delConfirm .del-card { animation: delCard 0.45s var(--spring) both; }
+        #delConfirm .del-card.shake { animation: shake 0.45s var(--ease-standard); }
+        #delConfirm.out { animation: delBackOut 0.18s ease both; pointer-events: none; }
+        #delConfirm.out .del-card { animation: delCardOut 0.18s ease both; }
+        @keyframes dueIn { from { opacity: 0; transform: translateY(-10px) scale(0.97); } to { opacity: 1; transform: none; } }
+        @keyframes bellRing { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(4deg); } }
+        .due-pop { animation: dueIn 0.55s var(--spring) both; }
+        .bell-ring { display: inline-block; transform-origin: 50% 0; animation: bellRing 1s ease 0.4s 1 both; }
+        .pc-card { transition: transform 0.45s var(--spring), box-shadow 0.3s ease; }
+        .pc-card.pc-sel { transform: translateY(-2px) scale(1.02); box-shadow: 0 10px 22px -10px rgba(255, 77, 109, 0.5); }
+        .pc-bar { transition: width 0.8s var(--ease-out); }
+        @keyframes savedPop { 0% { transform: scale(0.96); } 55% { transform: scale(1.04); } 100% { transform: scale(1); } }
+        .btn-saved { background-color: #10b981 !important; box-shadow: 0 8px 16px rgba(16, 185, 129, 0.3) !important; animation: savedPop 0.5s var(--spring); }
+        @keyframes fieldShake { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
+        .field-invalid { border-color: #ef4444 !important; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.16) !important; animation: fieldShake 0.4s ease; }
+        @keyframes syncDone { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55); transform: scale(1); } 40% { transform: scale(1.12); } 100% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); transform: scale(1); } }
+        #syncStatus.sync-done { animation: syncDone 0.9s var(--ease-out); }
         /* แสงวาบพาดผ่านการ์ดยอดคงเหลือหนึ่งครั้งตอนเปิดแอป */
         .hero-aurora .sheen { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.35) 50%, transparent 65%); transform: translateX(-120%); animation: sheenSweep 1.3s cubic-bezier(.4,0,.2,1) 1.1s 1 both; }
         @keyframes sheenSweep { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
@@ -759,6 +782,7 @@
         let currentEditId = null;
         let searchQuery = "";
         let filterWho = "", filterBank = "";
+        let prevSyncState = '';
         let viewFilter = 'all';
         let animateNext = true;      // เล่นแอนิเมชันเข้าเฉพาะตอนเปิดแอป/เปลี่ยนเดือน/เปลี่ยนมุมมอง
         let highlightId = null;
@@ -971,6 +995,12 @@
                 el.dataset.label = text;
             }
             el.innerHTML = `<i class="ph-bold ${icon}"></i><span>${escapeHTML(text)}</span>`;
+            // ส่งข้อมูลค้างครบแล้ว: ป้ายเด้งพร้อมวงแสงสีเขียวหนึ่งครั้ง และไอคอนซิงค์หมุนระหว่างส่ง
+            const st = (!window.sheetsWebhookUrl || E) ? 'x' : (n > 0 ? 'send' : 'ok');
+            if (prevSyncState === 'send' && st === 'ok' && !prefersReduced()) { el.classList.remove('sync-done'); void el.offsetWidth; el.classList.add('sync-done'); }
+            prevSyncState = st;
+            const bi = document.querySelector('#syncBtn i');
+            if (bi) { if (n > 0 && isFlushing) bi.classList.add('animate-spin'); else if (!isSyncing) bi.classList.remove('animate-spin'); }
         }
 
         const escapeHTML = (str) => {
@@ -1084,7 +1114,7 @@
 
             document.getElementById('expenseForm').addEventListener('submit', (e) => {
                 e.preventDefault();
-                const fail = (msg) => { shake(document.getElementById('expSubmitBtn')); return window.showToast(msg, 'error'); };
+                const fail = (msg, fieldId) => { shake(document.getElementById('expSubmitBtn')); if (fieldId) markInvalid(document.getElementById(fieldId)); return window.showToast(msg, 'error'); };
                 const mode = document.getElementById('expPayMode').value;
                 const paid = round2(parseFloat(document.getElementById('expAmount').value));
                 const extra = { payMode: mode, fullAmount: null, minAmount: null, installmentAmount: null, remainingAmount: null, currentInstallment: null, totalInstallments: null };
@@ -1092,19 +1122,19 @@
                 if (mode === 'minpay') {
                     const full = parseFloat(document.getElementById('expFullAmount').value);
                     const min = parseFloat(document.getElementById('expMinAmount').value) || 0;
-                    if (!(full > 0)) return fail('กรุณากรอกยอดเต็มตามบิล');
-                    if (min > full) return fail('ยอดขั้นต่ำต้องไม่เกินยอดเต็ม');
-                    if (paid > full) return fail('จำนวนที่จ่ายต้องไม่เกินยอดเต็ม');
-                    if (paid < min) return fail('ต้องจ่ายอย่างน้อยยอดขั้นต่ำ ' + formatMoney(min));
+                    if (!(full > 0)) return fail('กรุณากรอกยอดเต็มตามบิล', 'expFullAmount');
+                    if (min > full) return fail('ยอดขั้นต่ำต้องไม่เกินยอดเต็ม', 'expMinAmount');
+                    if (paid > full) return fail('จำนวนที่จ่ายต้องไม่เกินยอดเต็ม', 'expAmount');
+                    if (paid < min) return fail('ต้องจ่ายอย่างน้อยยอดขั้นต่ำ ' + formatMoney(min), 'expAmount');
                     extra.fullAmount = full; extra.minAmount = min; extra.remainingAmount = round2(full - paid);
                 } else if (mode === 'installment') {
                     const fixed = parseFloat(document.getElementById('expInstallAmount').value);
                     const cur = parseInt(document.getElementById('expCurInstall').value);
                     const tot = parseInt(document.getElementById('expTotalInstall').value);
-                    if (!(fixed > 0)) return fail('กรุณากรอกยอดผ่อนต่องวด');
-                    if (!(cur > 0 && tot > 0)) return fail('กรุณากรอกงวดที่และจำนวนงวดทั้งหมด');
-                    if (cur > tot) return fail('งวดที่ต้องไม่เกินจำนวนงวดทั้งหมด');
-                    if (paid < fixed) return fail('ต้องจ่ายไม่น้อยกว่ายอดต่องวด ' + formatMoney(fixed));
+                    if (!(fixed > 0)) return fail('กรุณากรอกยอดผ่อนต่องวด', 'expInstallAmount');
+                    if (!(cur > 0 && tot > 0)) return fail('กรุณากรอกงวดที่และจำนวนงวดทั้งหมด', 'expCurInstall');
+                    if (cur > tot) return fail('งวดที่ต้องไม่เกินจำนวนงวดทั้งหมด', 'expCurInstall');
+                    if (paid < fixed) return fail('ต้องจ่ายไม่น้อยกว่ายอดต่องวด ' + formatMoney(fixed), 'expAmount');
                     extra.installmentAmount = fixed; extra.currentInstallment = String(cur); extra.totalInstallments = String(tot);
                 }
 
@@ -1145,6 +1175,7 @@
             }
             if (id === 'copyBillsModal') renderCopyBillsModal();
 
+            ['incSubmitBtn', 'expSubmitBtn'].forEach(b => document.getElementById(b).classList.remove('btn-saved'));
             // ปุ่มลบจะแสดงเฉพาะตอนแก้ไขรายการที่มีอยู่
             ['inc', 'exp'].forEach(pr => { const b = document.getElementById(pr + 'DeleteBtn'); if (b) { b.classList.toggle('hidden', !currentEditId); b.classList.toggle('flex', !!currentEditId); } });
             if(!currentEditId) {
@@ -1376,7 +1407,11 @@
 
         window.saveAndSync = async (data, modalId) => {
             const wasEdit = !!currentEditId;
-            if (modalId) showSuccessTick();
+            if (modalId) {
+                showSuccessTick();
+                const sb = document.getElementById(data.type === 'income' ? 'incSubmitBtn' : 'expSubmitBtn');
+                if (sb) { sb.textContent = '✓ บันทึกแล้ว'; sb.classList.add('btn-saved'); }
+            }
             if (data.type === 'expense' && data.isCompleted) celebrateArmed = Date.now();
             try { if (data.who) localStorage.setItem('lastWho', data.who); if (data.type === 'expense' && data.bank) localStorage.setItem('lastBank', data.bank); } catch (e) {}
             window.closeModal();
@@ -2300,8 +2335,18 @@
 
         // ===== เอฟเฟกต์ระดับแอปทางการ: เลื่อนถึงแล้วค่อยปรากฏ / สั่นเมื่อกรอกผิด / ติ๊กถูกเมื่อบันทึกสำเร็จ =====
         // กรอกเร็ว: กด Enter/ถัดไปที่ช่องรายละเอียดแล้วเด้งไปช่องจำนวนเงิน และแตะช่องตัวเลขแล้วเลือกทั้งหมดให้พิมพ์ทับได้เลย
+        // ช่องที่กรอกผิด/ว่าง: ขอบแดง + สั่น + โฟกัสให้เลย (ลบเองเมื่อพิมพ์แก้)
+        function markInvalid(el) {
+            if (!el) return;
+            el.classList.remove('field-invalid'); void el.offsetWidth; el.classList.add('field-invalid');
+            try { el.focus({ preventScroll: false }); } catch (e) {}
+            const clear = () => { el.classList.remove('field-invalid'); el.removeEventListener('input', clear); };
+            el.addEventListener('input', clear);
+            setTimeout(clear, 3000);
+        }
         function initFastEntry() {
-            document.getElementById('bankFilter').addEventListener('change', (e) => { filterBank = e.target.value; renderDashboard(); });
+            ['incomeForm', 'expenseForm'].forEach(id => document.getElementById(id).addEventListener('invalid', (e) => { e.preventDefault(); markInvalid(e.target); }, true));
+            document.getElementById('bankFilter').addEventListener('change', (e) => { const v = e.target.value; changeView(() => { filterBank = v; }, 0); });
             [['expDesc', 'expAmount'], ['incDesc', 'incAmount']].forEach(([from, to]) => {
                 const f = document.getElementById(from), t = document.getElementById(to);
                 if (!f || !t) return;
@@ -2730,8 +2775,8 @@
             sel.value = filterBank;
             document.getElementById('clearFilters').classList.toggle('hidden', !(filterWho || filterBank || searchQuery));
         }
-        window.setWho = (w) => { filterWho = (filterWho === w ? '' : w); renderDashboard(); };
-        window.clearFilters = () => { filterWho = ''; filterBank = ''; searchQuery = ''; const si = document.getElementById('searchInput'); if (si) si.value = ''; renderDashboard(); };
+        window.setWho = (w) => { changeView(() => { filterWho = (filterWho === w ? '' : w); }, 0); };
+        window.clearFilters = () => { changeView(() => { filterWho = ''; filterBank = ''; searchQuery = ''; const si = document.getElementById('searchInput'); if (si) si.value = ''; }, 0); };
 
         // ===== สรุปแยกรายคน (เดือนที่เลือก) แตะเพื่อกรองรายการเฉพาะคนนั้น =====
         function renderPersonCards() {
@@ -2745,19 +2790,40 @@
                 const unpaid = mine.filter(t => t.type === 'expense' && !t.isCompleted);
                 return { name, i, e, net: i - e, unpaidN: unpaid.length, unpaidSum: unpaid.reduce((a, t) => a + (Number(t.amount) || 0), 0) };
             });
-            if (stats.every(r => r.i === 0 && r.e === 0)) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+            if (stats.every(r => r.i === 0 && r.e === 0)) { box.classList.add('hidden'); return; }
             box.classList.remove('hidden');
-            const maxV = Math.max(1, ...stats.flatMap(r => [r.i, r.e]));
-            box.innerHTML = stats.map(r => `
-                <button type="button" onclick="window.setWho('${r.name}'); window.scrollToList()" aria-pressed="${filterWho === r.name}" class="glass-card text-left rounded-2xl p-3.5 transition ${filterWho === r.name ? 'ring-2 ring-primary' : ''}">
+            // สร้างโครงครั้งเดียว แล้วอัปเดตค่าในที่เดิม เพื่อให้ตัวเลขหมุนและแท่งยืด/หดอย่างนุ่ม
+            if (!box.dataset.built) {
+                box.dataset.built = '1';
+                box.innerHTML = people.map(n => `
+                <button type="button" data-name="${n}" onclick="window.setWho('${n}'); window.scrollToList()" aria-pressed="false" class="pc-card glass-card text-left rounded-2xl p-3.5">
                     <div class="flex items-center justify-between mb-2">
-                        <span class="font-bold text-sm text-gray-800">${r.name}</span>
-                        <span class="money text-xs font-bold ${r.net >= 0 ? 'text-income' : 'text-expense'}">${r.net >= 0 ? '+' : '-'}${formatMoney(Math.abs(r.net))}</span>
+                        <span class="font-bold text-sm text-gray-800">${n}</span>
+                        <span class="text-xs font-bold"><span class="pc-sign"></span><span class="pc-net money"></span></span>
                     </div>
-                    <div class="flex items-center gap-1.5 text-[10px] mb-1"><span class="w-9 text-gray-500">รับ</span><div class="flex-1 bg-green-100 rounded-full h-1.5"><div class="h-1.5 rounded-full bg-income" style="width:${Math.round(r.i / maxV * 100)}%"></div></div><span class="money w-16 text-right text-gray-600">${formatMoney(r.i)}</span></div>
-                    <div class="flex items-center gap-1.5 text-[10px]"><span class="w-9 text-gray-500">จ่าย</span><div class="flex-1 bg-red-100 rounded-full h-1.5"><div class="h-1.5 rounded-full bg-expense" style="width:${Math.round(r.e / maxV * 100)}%"></div></div><span class="money w-16 text-right text-gray-600">${formatMoney(r.e)}</span></div>
-                    <p class="text-[10px] mt-2 ${r.unpaidN ? 'text-amber-600 font-semibold' : 'text-gray-400'}">${r.unpaidN ? `ค้างจ่าย ${r.unpaidN} บิล · ${formatMoney(r.unpaidSum)}` : 'ไม่มีบิลค้างจ่าย'}</p>
+                    <div class="flex items-center gap-1.5 text-[10px] mb-1"><span class="w-9 text-gray-500">รับ</span><div class="flex-1 bg-green-100 rounded-full h-1.5 overflow-hidden"><div class="pc-bar pc-ib h-1.5 rounded-full bg-income" style="width:0%"></div></div><span class="pc-i money w-20 text-right text-gray-600"></span></div>
+                    <div class="flex items-center gap-1.5 text-[10px]"><span class="w-9 text-gray-500">จ่าย</span><div class="flex-1 bg-red-100 rounded-full h-1.5 overflow-hidden"><div class="pc-bar pc-eb h-1.5 rounded-full bg-expense" style="width:0%"></div></div><span class="pc-e money w-20 text-right text-gray-600"></span></div>
+                    <p class="pc-un text-[10px] mt-2"></p>
                 </button>`).join('');
+            }
+            const maxV = Math.max(1, ...stats.flatMap(r => [r.i, r.e]));
+            stats.forEach(r => {
+                const c = box.querySelector(`[data-name="${r.name}"]`);
+                if (!c) return;
+                const sel = filterWho === r.name;
+                c.classList.toggle('pc-sel', sel); c.setAttribute('aria-pressed', sel);
+                const sign = c.querySelector('.pc-sign'); sign.textContent = r.net >= 0 ? '+' : '-';
+                const net = c.querySelector('.pc-net');
+                net.parentElement.className = 'text-xs font-bold ' + (r.net >= 0 ? 'text-income' : 'text-expense');
+                tweenNumber(net, Math.abs(r.net)); tweenNumber(c.querySelector('.pc-i'), r.i); tweenNumber(c.querySelector('.pc-e'), r.e);
+                net.style.fontSize = ''; c.querySelector('.pc-i').style.fontSize = ''; c.querySelector('.pc-e').style.fontSize = '';
+                const apply = () => { c.querySelector('.pc-ib').style.width = Math.round(r.i / maxV * 100) + '%'; c.querySelector('.pc-eb').style.width = Math.round(r.e / maxV * 100) + '%'; };
+                if (box.dataset.shown) apply(); else requestAnimationFrame(() => requestAnimationFrame(apply));
+                const un = c.querySelector('.pc-un');
+                un.className = 'pc-un text-[10px] mt-2 ' + (r.unpaidN ? 'text-amber-600 font-semibold' : 'text-gray-400');
+                un.textContent = r.unpaidN ? `ค้างจ่าย ${r.unpaidN} บิล · ${formatMoney(r.unpaidSum)}` : 'ไม่มีบิลค้างจ่าย';
+            });
+            box.dataset.shown = '1';
         }
         window.scrollToList = () => { const el = document.getElementById('viewChips'); if (el) el.scrollIntoView({ behavior: prefersReduced() ? 'auto' : 'smooth', block: 'start' }); };
         window.scrollToPlan = () => { const el = document.getElementById('remindersSection'); if (el) el.scrollIntoView({ behavior: prefersReduced() ? 'auto' : 'smooth', block: 'start' }); };
@@ -2767,13 +2833,15 @@
             const el = document.getElementById('dueBanner');
             const over = bills.filter(t => daysFromToday(t.date) < 0);
             const soon = bills.filter(t => { const d = daysFromToday(t.date); return d >= 0 && d <= 3; });
-            if (!over.length && !soon.length) { el.classList.add('hidden'); return; }
+            if (!over.length && !soon.length) { el.classList.add('hidden'); delete el.dataset.sig; return; }
+            const sig = over.length + '|' + soon.length;
+            const fresh = el.dataset.sig !== sig; el.dataset.sig = sig;   // เล่นแอนิเมชันเฉพาะตอนเพิ่งขึ้นหรือจำนวนบิลเปลี่ยน
             const sum = (a) => a.reduce((x, t) => x + (Number(t.amount) || 0), 0);
             const parts = [];
             if (over.length) parts.push(`เกินกำหนด ${over.length} บิล`);
             if (soon.length) parts.push(`ครบใน 3 วัน ${soon.length} บิล`);
-            el.className = `w-full text-left rounded-2xl px-4 py-3 text-sm font-semibold shadow-sm flex items-center gap-2 ${over.length ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`;
-            el.innerHTML = `<i class="ph-fill ph-bell-ringing text-lg"></i><span class="flex-1">${parts.join(' · ')} <span class="money font-bold">${formatMoney(sum(over) + sum(soon))}</span></span><i class="ph-bold ph-caret-right"></i>`;
+            el.className = `w-full text-left rounded-2xl px-4 py-3 text-sm font-semibold shadow-sm flex items-center gap-2 ${fresh ? 'due-pop' : ''} ${over.length ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`;
+            el.innerHTML = `<i class="ph-fill ph-bell-ringing text-lg ${fresh ? 'bell-ring' : ''}"></i><span class="flex-1">${parts.join(' · ')} <span class="money font-bold">${formatMoney(sum(over) + sum(soon))}</span></span><i class="ph-bold ph-caret-right"></i>`;
         }
 
 
@@ -2873,7 +2941,7 @@
             const close = (cancelled) => {
                 if (done) return; done = true;
                 document.removeEventListener('keydown', onKey, true);
-                box.remove();
+                if (prefersReduced()) box.remove(); else { box.classList.add('out'); setTimeout(() => box.remove(), 190); }
                 if (cancelled && onCancel) onCancel();
             };
             const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(true); } };
