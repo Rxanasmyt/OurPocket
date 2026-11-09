@@ -19,7 +19,7 @@ ok(JSON.stringify(names) === JSON.stringify(['สรุป', 'ลำดับจ
 ok(env.props.get('setupErrors') === '', 'no setup errors: "' + env.props.get('setupErrors') + '"');
 const data = env.ss.getSheetByName('รายการ');
 const hdr = data.getRange(1, 1, 1, data.getLastColumn()).getValues()[0];
-ok(hdr.length === 21, 'headers = 21: ' + hdr.length);
+ok(hdr.length === 22, 'headers = 22: ' + hdr.length);
 const row = (n) => { const o = {}; data.getRange(n, 1, 1, hdr.length).getValues()[0].forEach((v, i) => (o[hdr[i]] = v)); return o; };
 let r2 = row(2);
 ok(r2['ประเภท'] === 'รายรับ' && r2['จำนวนเงิน'] === 29100 && r2['ยอดก่อนหัก'] === 30000 && r2['หัก ณ ที่จ่าย %'] === 3 && r2['ที่มา'] === 'กรอกเอง', 'income row complete: ' + JSON.stringify(r2).slice(0, 220));
@@ -79,7 +79,7 @@ const legacyRow = ['รายจ่าย', '2026-10-05', '2026-10', 'อาห�
 legacyRow.forEach((v, c) => old.set(2, c + 1, v));
 env.post({ action: 'sync' });
 const dh = old.getRange(1, 1, 1, old.getLastColumn()).getValues()[0];
-ok(old.name === 'รายการ' && dh.length === 21 && dh.slice(0, 18).join() === OLD.join(), 'old sheet renamed + 3 columns appended after the old 18: ' + dh.length);
+ok(old.name === 'รายการ' && dh.length === 22 && dh.slice(0, 18).join() === OLD.join(), 'old sheet renamed + 4 columns appended after the old 18: ' + dh.length);
 const lr = {}; old.getRange(2, 1, 1, dh.length).getValues()[0].forEach((v, i) => (lr[dh[i]] = v));
 ok(lr['ID'] === 'old1' && lr['จำนวนเงิน'] === 120 && lr['บันทึกเมื่อ'] === '05/10/2026 12:00:00', 'legacy row preserved (id, amount, original saved-at)');
 ok(lr['ยอดเต็มบิล'] === '' && lr['งวดที่'] === '' && lr['ที่มา'] === 'กรอกเอง', "legacy '-' placeholders cleaned to blanks, new columns backfilled");
@@ -163,6 +163,15 @@ po.post(rec.income);
   ok(!!last && last.removed.includes('phada@example.com') && !last.removed.includes('owner@example.com') && !last.calls.includes('warningOnly:true'), 'tab "' + n + '": other editors removed, owner kept, not warning-only');
 });
 ok(po.post({ ...rec.normal, id: 'o1' }).status === 'success', 'app can still write after tabs are locked');
+
+console.log('== recurring income column ==');
+const rc = makeEnv({ sheets: ['Sheet1'] });
+rc.post({ ...rec.income, recurring: true });
+rc.post({ ...rec.income, id: 'i2' });
+const rd = rc.ss.getSheetByName('รายการ');
+const rh = rd.getRange(1, 1, 1, rd.getLastColumn()).getValues()[0];
+const ri = rh.indexOf('รับประจำ') + 1;
+ok(ri > 0 && rd.getRange(2, ri).getValue() === 'ทุกเดือน' && rd.getRange(3, ri).getValue() === '', 'recurring income marked "ทุกเดือน", normal income blank');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.25.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.26.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -410,6 +410,9 @@
             </header>
         </div>
 
+        <!-- แถบเตือนบิลใกล้ครบกำหนด -->
+        <button type="button" id="dueBanner" onclick="window.scrollToPlan()" class="hidden w-full text-left rounded-2xl px-4 py-3 text-sm font-semibold shadow-sm"></button>
+
         <!-- Dashboard Cards -->
         <div class="grid grid-cols-2 gap-4">
             <div class="hero-aurora col-span-2 glass-card rounded-3xl p-6 text-center bg-gradient-to-br from-primary to-[#c9184a] text-white shadow-lg shadow-primary/30 relative overflow-hidden reveal"><span class="glow-ring" aria-hidden="true"></span><span class="sheen" aria-hidden="true"></span>
@@ -467,6 +470,9 @@
                 </div>
             </div>
         </div>
+
+        <!-- สรุปแยกรายคน (แตะเพื่อกรองรายการเฉพาะคนนั้น) -->
+        <div id="personCards" class="grid grid-cols-2 gap-3 reveal"></div>
 
         <!-- Stats -->
         <div id="statsSection" class="glass-card rounded-3xl p-5 reveal">
@@ -530,6 +536,13 @@
                 <button type="button" data-view="all" onclick="window.setView('all')" class="view-chip seg-btn active">ทั้งหมด</button>
                 <button type="button" data-view="income" onclick="window.setView('income')" class="view-chip seg-btn">รายรับ</button>
                 <button type="button" data-view="expense" onclick="window.setView('expense')" class="view-chip seg-btn">รายจ่าย</button>
+            </div>
+            <div id="filterRow" class="flex flex-wrap items-center gap-1.5 px-1 mb-2">
+                <button type="button" data-who="" onclick="window.setWho('')" class="who-chip chip">ทุกคน</button>
+                <button type="button" data-who="Anas" onclick="window.setWho('Anas')" class="who-chip chip">Anas</button>
+                <button type="button" data-who="Phada" onclick="window.setWho('Phada')" class="who-chip chip">Phada</button>
+                <select id="bankFilter" aria-label="กรองตามธนาคาร" class="ml-auto px-3 py-1.5 rounded-full border border-gray-200 bg-white text-xs font-semibold text-gray-600"><option value="">ทุกธนาคาร</option></select>
+                <button type="button" id="clearFilters" onclick="window.clearFilters()" class="hidden px-3 py-1.5 rounded-full text-xs font-semibold text-primary bg-primary/10">ล้างตัวกรอง</button>
             </div>
             <p id="listSummary" class="text-xs text-gray-500 px-1 mb-3"></p>
             <div id="transactionsList" class="space-y-3 pb-8"></div>
@@ -601,6 +614,10 @@
                         <select id="incTaxRate" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm">
                             <option value="0" data-short="ไม่หักภาษี">ไม่หักภาษี (รับเต็ม 100%)</option><option value="3" data-short="หัก 3%">หัก 3%</option>
                         </select>
+                    </div>
+                    <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <input type="checkbox" id="incRecurring" class="cbx">
+                        <label for="incRecurring" class="text-sm font-medium text-gray-700">รับทุกเดือน <span class="block text-[11px] font-normal text-gray-400">สร้างรายการเดือนถัดไปให้เอง วันที่เดิมทุกเดือน</span></label>
                     </div>
                     <div class="bg-green-50/50 p-4 rounded-xl border border-green-100 flex justify-between items-center">
                         <span class="text-sm text-gray-600 font-medium">ยอดรับสุทธิ:</span><span id="incNetAmountDisplay" class="text-xl font-bold text-green-600">฿0.00</span>
@@ -741,6 +758,7 @@
         let isSyncing = false;
         let currentEditId = null;
         let searchQuery = "";
+        let filterWho = "", filterBank = "";
         let viewFilter = 'all';
         let animateNext = true;      // เล่นแอนิเมชันเข้าเฉพาะตอนเปิดแอป/เปลี่ยนเดือน/เปลี่ยนมุมมอง
         let highlightId = null;
@@ -1045,6 +1063,13 @@
                     netAmount: round2(amt - (amt * taxRate / 100)),
                     timestamp: new Date().getTime()
                 };
+                if (document.getElementById('incRecurring').checked) data.recurring = true;
+                const prevInc = currentEditId ? allTransactions.find(t => t.id === currentEditId) : null;
+                if (prevInc) {
+                    if (data.recurring && prevInc.recurring) { data.seriesId = seriesOf(prevInc); if (prevInc.dueDay) data.dueDay = prevInc.dueDay; }
+                    if (prevInc.autoGenerated) { data.autoGenerated = true; data.userEdited = true; }
+                    if (prevInc.stopAuto) data.stopAuto = true;
+                }
                 window.saveAndSync(data, 'incomeModal', 'incNetAmountDisplay');
             });
 
@@ -1322,6 +1347,7 @@
                 document.getElementById('incDesc').value = item.description;
                 document.getElementById('incAmount').value = item.amount;
                 setSelect('incTaxRate', String(item.taxRate || 0), 'หัก ' + (item.taxRate || 0) + '%');
+                document.getElementById('incRecurring').checked = !!item.recurring;
                 document.getElementById('incNetAmountDisplay').textContent = formatMoney(item.netAmount);
                 document.getElementById('incModalTitle').innerHTML = '<i class="ph-fill ph-pencil-simple"></i> แก้ไขรายรับ';
                 document.getElementById('incSubmitBtn').textContent = "อัปเดตข้อมูล";
@@ -1741,9 +1767,13 @@
                 monthlyData = monthlyData.filter(t =>
                     (t.description || "").toLowerCase().includes(searchQuery) ||
                     (t.category || "").toLowerCase().includes(searchQuery) ||
-                    (t.who || "").toLowerCase().includes(searchQuery)
+                    (t.who || "").toLowerCase().includes(searchQuery) ||
+                    (t.bank || "").toLowerCase().includes(searchQuery) ||
+                    String(t.type === 'income' ? t.netAmount : t.amount).includes(searchQuery)
                 );
             }
+            if (filterWho) monthlyData = monthlyData.filter(t => t.who === filterWho);
+            if (filterBank) monthlyData = monthlyData.filter(t => t.type === 'expense' && t.bank === filterBank);
             if (viewFilter === 'income') monthlyData = monthlyData.filter(t => t.type === 'income');
             if (viewFilter === 'expense') monthlyData = monthlyData.filter(t => t.type === 'expense');
             monthlyData.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -1774,12 +1804,12 @@
 
 
             if (monthlyData.length === 0) {
-                if (!firstSettled && window.sheetsWebhookUrl && allTransactions.length === 0 && !searchQuery) {
+                if (!firstSettled && window.sheetsWebhookUrl && allTransactions.length === 0 && !searchQuery && !filterWho && !filterBank) {
                     // รอข้อมูลจากชีตครั้งแรก: โชว์โครงกระดูกเรืองแสงแทนหน้าว่างที่ทำให้ตกใจ
                     list.innerHTML = [0, 1, 2].map(i => `<div class="skeleton h-[74px]" style="animation-delay:${i * 0.12}s" aria-hidden="true"></div>`).join('');
                 } else {
-                    const emptyTitle = searchQuery ? 'ไม่พบรายการที่ค้นหา' : viewFilter === 'income' ? 'ยังไม่มีรายรับเดือนนี้' : viewFilter === 'expense' ? 'ยังไม่มีรายจ่ายเดือนนี้' : 'ยังไม่มีรายการเดือนนี้';
-                    const emptyHint = searchQuery ? 'ลองใช้คำค้นอื่น' : 'กดปุ่ม "รับเงิน" หรือ "จ่ายเงิน" ด้านล่างเพื่อเริ่มบันทึก';
+                    const emptyTitle = (searchQuery || filterWho || filterBank) ? 'ไม่พบรายการที่ค้นหา' : viewFilter === 'income' ? 'ยังไม่มีรายรับเดือนนี้' : viewFilter === 'expense' ? 'ยังไม่มีรายจ่ายเดือนนี้' : 'ยังไม่มีรายการเดือนนี้';
+                    const emptyHint = (searchQuery || filterWho || filterBank) ? 'ลองใช้คำค้นหรือตัวกรองอื่น (กด ล้างตัวกรอง)' : 'กดปุ่ม "รับเงิน" หรือ "จ่ายเงิน" ด้านล่างเพื่อเริ่มบันทึก';
                     list.innerHTML = `<div class="empty-state glass-card rounded-2xl"><img src="icons/icon.svg" alt="" class="empty-float w-16 h-16 rounded-2xl shadow-lg shadow-primary/20 mb-3"><p class="font-semibold text-gray-600">${emptyTitle}</p><p class="text-xs mt-1">${emptyHint}</p></div>`;
                 }
             } else {
@@ -1885,6 +1915,8 @@
             }
 
             renderPayPlan();
+            renderPersonCards();
+            updateFilterUI();
         }
 
         const CATEGORY_COLORS = ['#ff4d6d', '#f59e0b', '#8b5cf6', '#0ea5e9', '#10b981', '#c9184a', '#9ca3af'];
@@ -2029,7 +2061,7 @@
         // ===== บิลต่อเนื่องอัตโนมัติ (ผ่อนรายงวด / จ่ายขั้นต่ำ) =====
         const hashStr = (str) => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
         const seriesOf = (t) => t.seriesId || hashStr(seriesKey(t));
-        const seriesKey = (t) => [t.who || '', (t.description || '').trim().toLowerCase(), t.bank || '', billKind(t)].join('|');
+        const seriesKey = (t) => t.type === 'income' ? ['income', t.who || '', (t.description || '').trim().toLowerCase(), t.category || ''].join('|') : [t.who || '', (t.description || '').trim().toLowerCase(), t.bank || '', billKind(t)].join('|');
         const sortByMonthDate = (a, b) => a.monthYear === b.monthYear ? new Date(a.date) - new Date(b.date) : (a.monthYear < b.monthYear ? -1 : 1);
 
         // สร้างบิลเดือนถัดไปให้เองจนถึงเดือนหน้า: ผ่อนงวด = งวดถัดไปจนครบ, จ่ายขั้นต่ำ = ยกยอดคงค้างมาเมื่อจ่ายแล้ว
@@ -2099,6 +2131,28 @@
                     last = next;
                 }
             });
+            // รายรับประจำ (เช่น เงินเดือน): สร้างเดือนถัดไปให้เองจนถึงเดือนหน้า ใช้วันที่เดิมทุกเดือน
+            const igroups = {};
+            allTransactions.forEach(t => { if (t.type === 'income' && t.recurring) (igroups[seriesOf(t)] = igroups[seriesOf(t)] || []).push(t); });
+            Object.entries(igroups).forEach(([key, list]) => {
+                list.sort(sortByMonthDate);
+                let last = list[list.length - 1];
+                if (!last || last.stopAuto) return;
+                for (;;) {
+                    const nextYM = addMonth(last.monthYear, 1);
+                    if (nextYM > horizon) break;
+                    const lastDay = Number(last.date.slice(8, 10)) || 1;
+                    const lastCap = new Date(Number(last.monthYear.slice(0, 4)), Number(last.monthYear.slice(5, 7)), 0).getDate();
+                    const dueDay = (last.dueDay && lastDay === Math.min(last.dueDay, lastCap)) ? last.dueDay : lastDay;
+                    const next = { ...last, seriesId: key, id: mkId(key, nextYM), dueDay, date: dateInMonth(`${nextYM}-${pad2(dueDay)}`, nextYM), monthYear: nextYM, autoGenerated: true, timestamp: Date.now() };
+                    delete next.stopAuto; delete next.userEdited;
+                    if (allTransactions.some(t => t.id === next.id)) break;
+                    allTransactions.push(next);
+                    sendToSheets(next);
+                    changed++;
+                    last = next;
+                }
+            });
             if (changed) persistData();
             return changed;
         }
@@ -2155,6 +2209,7 @@
                 window.showToast('จ่ายครบทุกบิลแล้ว 🎉', 'success');
             }
             celebrateArmed = 0; lastUnpaidCount = bills.length;
+            renderDueBanner(bills);
             if (bills.length === 0) { box.innerHTML = ''; document.getElementById('payTimeline').classList.add('hidden'); section.classList.add('hidden'); return; }
             section.classList.remove('hidden');
 
@@ -2246,6 +2301,7 @@
         // ===== เอฟเฟกต์ระดับแอปทางการ: เลื่อนถึงแล้วค่อยปรากฏ / สั่นเมื่อกรอกผิด / ติ๊กถูกเมื่อบันทึกสำเร็จ =====
         // กรอกเร็ว: กด Enter/ถัดไปที่ช่องรายละเอียดแล้วเด้งไปช่องจำนวนเงิน และแตะช่องตัวเลขแล้วเลือกทั้งหมดให้พิมพ์ทับได้เลย
         function initFastEntry() {
+            document.getElementById('bankFilter').addEventListener('change', (e) => { filterBank = e.target.value; renderDashboard(); });
             [['expDesc', 'expAmount'], ['incDesc', 'incAmount']].forEach(([from, to]) => {
                 const f = document.getElementById(from), t = document.getElementById(to);
                 if (!f || !t) return;
@@ -2436,7 +2492,7 @@
             const src = allTransactions.find(x => x.id === id);
             if (!src) return;
             const copy = { ...src };
-            ['seriesId', 'autoGenerated', 'stopAuto', 'userEdited'].forEach(k => delete copy[k]);
+            ['seriesId', 'autoGenerated', 'stopAuto', 'userEdited', 'recurring', 'dueDay'].forEach(k => delete copy[k]);
             const today = localDateStr();
             copy.id = newId();
             copy.date = today; copy.monthYear = today.slice(0, 7); copy.timestamp = Date.now();
@@ -2663,6 +2719,64 @@
 
         window.setView = (v) => { changeView(() => { viewFilter = v; }, 0); };
 
+        // ===== ตัวกรองรายการ: คน / ธนาคาร (ใช้ร่วมกับช่องค้นหา) =====
+        function updateFilterUI() {
+            document.querySelectorAll('#filterRow .who-chip').forEach(b => b.classList.toggle('active', b.dataset.who === filterWho));
+            const sel = document.getElementById('bankFilter');
+            const banks = [...new Set(allTransactions.filter(t => t.type === 'expense' && t.bank).map(t => t.bank))].sort();
+            if (filterBank && !banks.includes(filterBank)) banks.push(filterBank);
+            const want = '<option value="">ทุกธนาคาร</option>' + banks.map(b => `<option value="${escapeHTML(b)}">${escapeHTML(b)}</option>`).join('');
+            if (sel.dataset.sig !== want) { sel.innerHTML = want; sel.dataset.sig = want; }
+            sel.value = filterBank;
+            document.getElementById('clearFilters').classList.toggle('hidden', !(filterWho || filterBank || searchQuery));
+        }
+        window.setWho = (w) => { filterWho = (filterWho === w ? '' : w); renderDashboard(); };
+        window.clearFilters = () => { filterWho = ''; filterBank = ''; searchQuery = ''; const si = document.getElementById('searchInput'); if (si) si.value = ''; renderDashboard(); };
+
+        // ===== สรุปแยกรายคน (เดือนที่เลือก) แตะเพื่อกรองรายการเฉพาะคนนั้น =====
+        function renderPersonCards() {
+            const box = document.getElementById('personCards');
+            const month = allTransactions.filter(t => t.monthYear === currentMonthYear);
+            const people = ['Anas', 'Phada'];
+            const stats = people.map(name => {
+                const mine = month.filter(t => t.who === name);
+                const i = mine.filter(t => t.type === 'income').reduce((a, t) => a + (Number(t.netAmount) || 0), 0);
+                const e = mine.filter(t => t.type === 'expense').reduce((a, t) => a + (Number(t.amount) || 0), 0);
+                const unpaid = mine.filter(t => t.type === 'expense' && !t.isCompleted);
+                return { name, i, e, net: i - e, unpaidN: unpaid.length, unpaidSum: unpaid.reduce((a, t) => a + (Number(t.amount) || 0), 0) };
+            });
+            if (stats.every(r => r.i === 0 && r.e === 0)) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+            box.classList.remove('hidden');
+            const maxV = Math.max(1, ...stats.flatMap(r => [r.i, r.e]));
+            box.innerHTML = stats.map(r => `
+                <button type="button" onclick="window.setWho('${r.name}'); window.scrollToList()" aria-pressed="${filterWho === r.name}" class="glass-card text-left rounded-2xl p-3.5 transition ${filterWho === r.name ? 'ring-2 ring-primary' : ''}">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold text-sm text-gray-800">${r.name}</span>
+                        <span class="money text-xs font-bold ${r.net >= 0 ? 'text-income' : 'text-expense'}">${r.net >= 0 ? '+' : '-'}${formatMoney(Math.abs(r.net))}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 text-[10px] mb-1"><span class="w-9 text-gray-500">รับ</span><div class="flex-1 bg-green-100 rounded-full h-1.5"><div class="h-1.5 rounded-full bg-income" style="width:${Math.round(r.i / maxV * 100)}%"></div></div><span class="money w-16 text-right text-gray-600">${formatMoney(r.i)}</span></div>
+                    <div class="flex items-center gap-1.5 text-[10px]"><span class="w-9 text-gray-500">จ่าย</span><div class="flex-1 bg-red-100 rounded-full h-1.5"><div class="h-1.5 rounded-full bg-expense" style="width:${Math.round(r.e / maxV * 100)}%"></div></div><span class="money w-16 text-right text-gray-600">${formatMoney(r.e)}</span></div>
+                    <p class="text-[10px] mt-2 ${r.unpaidN ? 'text-amber-600 font-semibold' : 'text-gray-400'}">${r.unpaidN ? `ค้างจ่าย ${r.unpaidN} บิล · ${formatMoney(r.unpaidSum)}` : 'ไม่มีบิลค้างจ่าย'}</p>
+                </button>`).join('');
+        }
+        window.scrollToList = () => { const el = document.getElementById('viewChips'); if (el) el.scrollIntoView({ behavior: prefersReduced() ? 'auto' : 'smooth', block: 'start' }); };
+        window.scrollToPlan = () => { const el = document.getElementById('remindersSection'); if (el) el.scrollIntoView({ behavior: prefersReduced() ? 'auto' : 'smooth', block: 'start' }); };
+
+        // ===== แถบเตือนบนหน้าแรก: บิลเกินกำหนด/ครบกำหนดภายใน 3 วัน =====
+        function renderDueBanner(bills) {
+            const el = document.getElementById('dueBanner');
+            const over = bills.filter(t => daysFromToday(t.date) < 0);
+            const soon = bills.filter(t => { const d = daysFromToday(t.date); return d >= 0 && d <= 3; });
+            if (!over.length && !soon.length) { el.classList.add('hidden'); return; }
+            const sum = (a) => a.reduce((x, t) => x + (Number(t.amount) || 0), 0);
+            const parts = [];
+            if (over.length) parts.push(`เกินกำหนด ${over.length} บิล`);
+            if (soon.length) parts.push(`ครบใน 3 วัน ${soon.length} บิล`);
+            el.className = `w-full text-left rounded-2xl px-4 py-3 text-sm font-semibold shadow-sm flex items-center gap-2 ${over.length ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`;
+            el.innerHTML = `<i class="ph-fill ph-bell-ringing text-lg"></i><span class="flex-1">${parts.join(' · ')} <span class="money font-bold">${formatMoney(sum(over) + sum(soon))}</span></span><i class="ph-bold ph-caret-right"></i>`;
+        }
+
+
         function renderBreakdowns(anim) {
             // ปุ่มกรอง รายรับ/รายจ่าย
             const order = ['all', 'income', 'expense'];
@@ -2788,10 +2902,10 @@
             const idx = allTransactions.findIndex(t => t.id === id);
             if (idx < 0) return;
             const item = allTransactions[idx];
-            const recurring = item.type === 'expense' && billKind(item) !== 'normal';
+            const recurring = (item.type === 'expense' && billKind(item) !== 'normal') || (item.type === 'income' && !!item.recurring);
             let prevOfSeries = null;
             if (recurring) {
-                const sibs = allTransactions.filter(t => t.id !== id && t.type === 'expense' && seriesOf(t) === seriesOf(item)).sort(sortByMonthDate);
+                const sibs = allTransactions.filter(t => t.id !== id && t.type === item.type && seriesOf(t) === seriesOf(item)).sort(sortByMonthDate);
                 const last = sibs[sibs.length - 1];
                 if (last && last.monthYear < item.monthYear) prevOfSeries = last;
             }
