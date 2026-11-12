@@ -206,5 +206,32 @@ const jcats = []; for (let r = 11; r <= 19; r++) jcats.push(dsh.getRange(r, 10).
 ok(jcats.includes('ค่า ฉ.10 และ ฉ.11') && jcats.length === 9, 'dashboard income table lists the new category (9 rows)');
 ok(/^=SUM\(K11:K19\)/.test(dsh.formulas.get('20,11') || ''), 'income total moved to row 20 and sums all 9 categories');
 
+console.log('== merging edits from two devices (newest wins, deletes stick) ==');
+const mg = makeEnv({ sheets: ['Sheet1'] });
+const base = { ...rec.normal, id: 'm1', amount: 100, timestamp: 1000 };
+ok(mg.post(base).status === 'success', 'record created (t=1000)');
+const mrow = () => { const d = mg.ss.getSheetByName('รายการ'); const h = d.getRange(1, 1, 1, d.getLastColumn()).getValues()[0]; const amt = h.indexOf('จำนวนเงิน') + 1; return d.getLastRow() < 2 ? null : d.getRange(2, amt).getValue(); };
+let sr = mg.post({ ...base, amount: 300, timestamp: 3000 });
+ok(sr.changed === true && mrow() === 300, 'newer edit (t=3000) applied');
+sr = mg.post({ ...base, amount: 200, timestamp: 2000 });
+ok(sr.changed === false && sr.stale === true && mrow() === 300, 'older offline edit (t=2000) is ignored, newer value kept');
+let br = mg.post({ action: 'batch', items: [{ ...base, amount: 150, timestamp: 1500 }, { ...base, id: 'm2', amount: 5, timestamp: 4000 }] });
+ok(br.results[0].stale === true && br.results[1].stale === false, 'batch reports which items were stale');
+sr = mg.post({ action: 'delete', id: 'm1', ts: 2500 });
+ok(sr.changed === false && sr.stale === true && mrow() === 300, 'delete older than the latest edit is ignored (edit survives)');
+sr = mg.post({ action: 'delete', id: 'm1', ts: 5000 });
+ok(sr.changed === true, 'newer delete removes the record');
+sr = mg.post({ ...base, amount: 777, timestamp: 4500 });
+ok(sr.changed === false && sr.stale === true, 'old offline edit cannot bring a deleted record back');
+sr = mg.post({ ...base, amount: 888, timestamp: 6000 });
+ok(sr.changed === true, 'a genuinely newer save (e.g. undo delete) is accepted again');
+sr = mg.post({ action: 'delete', id: 'ghost', ts: 7000 });
+ok(sr.status === 'success' && sr.changed === false, 'deleting something that is not there is harmless');
+sr = mg.post({ ...rec.normal, id: 'ghost', timestamp: 6500 });
+ok(sr.stale === true, 'even if it never reached the sheet, a delete blocks older copies');
+ok(mg.ss.getSheetByName('_ลบแล้ว') && mg.sheets.length >= 6, 'deleted-ids tab exists');
+const names2 = mg.sheets.map((x) => x.name).filter((n) => n !== '_ลบแล้ว');
+ok(JSON.stringify(names2) === JSON.stringify(['สรุป', 'ลำดับจ่าย', 'รายเดือน', 'ค้นหา', 'รายการ', 'ตั้งค่า']), 'visible tabs unchanged');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

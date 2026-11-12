@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.35.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.36.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -961,6 +961,7 @@
         const flushQueue = async () => {
             if (isFlushing || !window.sheetsWebhookUrl || syncQueue.length === 0) return;
             isFlushing = true; updateSyncStatus();
+            let needPull = false;   // ชีตมีเวอร์ชันที่ใหม่กว่า (อีกเครื่องแก้/ลบไปแล้ว) ต้องดึงมาแทนของในเครื่อง
             try {
                 while (syncQueue.length > 0) {
                     const batch = syncQueue.slice(0, 20);
@@ -971,7 +972,7 @@
                     const keep = []; let firstBad = null, dropped = null;
                     batch.forEach((q, i) => {
                         const r = result.results[i];
-                        if (r && r.status === 'success') return;
+                        if (r && r.status === 'success') { if (r.stale) needPull = true; return; }
                         q.tries++;
                         firstBad = firstBad || r || { message: 'ไม่มีผลตอบกลับของรายการนี้' };
                         // ชีตปฏิเสธซ้ำ 5 ครั้ง: ทิ้งรายการนี้เพื่อไม่ให้คิวติดตลอด และบอกสาเหตุ
@@ -984,7 +985,10 @@
                     clearSync('send'); lastWriteAt = Date.now(); lastSentAt = Date.now();
                 }
             } catch (err) { failSync(codeOfError(err), err.detail, 'send'); }
-            finally { isFlushing = false; updateSyncStatus(); }
+            finally {
+                isFlushing = false; updateSyncStatus();
+                if (needPull) { knownRev = 0; setTimeout(() => window.syncFromSheets(true, true), 300); }
+            }
         };
 
         function updateSyncStatus() {
@@ -1173,7 +1177,7 @@
                     } else if (future.length) {
                         const gone = new Set(future.map(t => t.id));
                         allTransactions = allTransactions.filter(t => !gone.has(t.id));
-                        future.forEach(t => sendToSheets({ action: 'delete', id: t.id }));
+                        future.forEach(t => sendToSheets({ action: 'delete', id: t.id, ts: Date.now() }));
                         window.showToast(`เลิกรับประจำ ลบรายการล่วงหน้า ${future.length} รายการแล้ว`, 'success');
                     }
                 }
@@ -2223,7 +2227,7 @@
                         const exp = minNext(prev);
                         if (!exp) {
                             allTransactions = allTransactions.filter(t => t.id !== cur.id);
-                            sendToSheets({ action: 'delete', id: cur.id });
+                            sendToSheets({ action: 'delete', id: cur.id, ts: Date.now() });
                             list.pop(); changed++;
                         } else if (['fullAmount', 'minAmount', 'amount', 'remainingAmount'].some(k => cur[k] !== exp[k])) {
                             Object.assign(cur, exp, { timestamp: Date.now() });
@@ -2732,7 +2736,7 @@
             window.showToast(`ทำซ้ำเป็นรายการวันนี้แล้ว (${formatDate(today)})`, 'success', { duration: 5000, action: { label: 'เลิกทำ', fn: () => {
                 allTransactions = allTransactions.filter(x => x.id !== copy.id);
                 persistData();
-                sendToSheets({ action: 'delete', id: copy.id });
+                sendToSheets({ action: 'delete', id: copy.id, ts: Date.now() });
                 renderDashboard();
             } } });
         }
@@ -3164,7 +3168,7 @@
             allTransactions = allTransactions.filter(t => t.id !== id); persistData();
             const row = document.querySelector(`#transactionsList [data-id="${String(id).replace(/"/g, '')}"]`);
             if (collapseOut(row)) setTimeout(renderDashboard, 340); else renderDashboard();
-            sendToSheets({action: 'delete', id: id});
+            sendToSheets({action: 'delete', id: id, ts: Date.now()});
             // ลบทันทีแต่เลิกทำได้ 6 วินาที (ไม่ต้องกดยืนยันก่อนลบ)
             const msg = prevOfSeries ? 'ลบบิลนี้แล้ว และหยุดสร้างบิลเดือนถัดไปอัตโนมัติ' : 'ลบรายการแล้ว';
             window.showToast(msg, 'success', { duration: 6000, action: { label: 'เลิกทำ', fn: () => {
@@ -3173,6 +3177,7 @@
                     const live = allTransactions.find(t => t.id === prevBefore.id);
                     if (live) { if (prevBefore.stopAuto) live.stopAuto = true; else delete live.stopAuto; live.timestamp = Date.now(); sendToSheets(live); }
                 }
+                item.timestamp = Date.now();   // ใหม่กว่าเวลาที่ลบ เพื่อให้ชีตยอมรับการเลิกทำ
                 persistData();
                 highlightId = item.id;
                 sendToSheets(item);

@@ -27,7 +27,7 @@ var SHEET_PLAN = 'ลำดับจ่าย';
 var SHEET_MONTH = 'รายเดือน';
 var SHEET_SET = 'ตั้งค่า';
 var SHEET_FILTER = 'ค้นหา';
-var SETUP_VERSION = 'v17';
+var SETUP_VERSION = 'v18';
 // API_VERSION: เพิ่มทุกครั้งที่รูปแบบการคุยกับแอปเปลี่ยน (แอปจะไม่ส่งข้อมูลถ้าสคริปต์เก่ากว่าที่แอปต้องการ)
 var API_VERSION = 8;
 var SCRIPT_VERSION = 'Our Wallet script v' + API_VERSION;
@@ -250,6 +250,7 @@ function doPost(e) {
     try { data = JSON.parse(e.postData.contents); } catch (pe) { return json_(fail_('bad_request', 'อ่านข้อมูลที่ส่งมาไม่ได้')); }
     if (!authorized_(data.key)) return unauthorized_();
     delete data.key; // ห้ามเก็บรหัสผ่านลงชีต
+    tombCache_ = null;
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     if (!ss) return json_(fail_('no_spreadsheet', 'สคริปต์ไม่ได้ผูกกับ Google Sheet (ต้องสร้างจาก Extensions > Apps Script ในชีตนั้น)'));
@@ -278,7 +279,7 @@ function doPost(e) {
         try { one = applyOne_(ss, sheet, map, items[i] || {}); }
         catch (itemErr) { one = {status: "error", code: "exception", message: itemErr.toString()}; }
         if (one.changed) changed = true;
-        results.push({status: one.status, code: one.code, message: one.message});
+        results.push({status: one.status, code: one.code, message: one.message, stale: !!one.stale});
       }
       return json_({status: "success", results: results, rev: changed ? bumpRev_() : readRev_()});
     }
@@ -303,20 +304,48 @@ function applyOne_(ss, sheet, map, d) {
   if (d.action === 'delete') {
     if (!d.id) return {status: "error", code: "invalid_record", message: "ไม่มี id ที่จะลบ"};
     var row = findRowById_(sheet, map, d.id);
-    if (row > -1) { sheet.deleteRow(row); return {status: "success", message: "deleted", changed: true}; }
+    var delTs = Number(d.ts) || 0;
+    if (row > -1) {
+      // ถ้ารายการนี้ถูกแก้ "หลัง" ช่วงเวลาที่อีกเครื่องกดลบ (เช่นกดลบตอนออฟไลน์ ระหว่างนั้นอีกเครื่องแก้) ให้เก็บเวอร์ชันที่แก้ใหม่กว่าไว้
+      var cur = recordTs_(sheet, map, row);
+      if (delTs && cur > delTs) return {status: "success", message: "edited after delete", changed: false, stale: true};
+      sheet.deleteRow(row);
+      tombAdd_(ss, d.id, delTs || new Date().getTime());
+      return {status: "success", message: "deleted", changed: true};
+    }
+    tombAdd_(ss, d.id, delTs || new Date().getTime());   // จำไว้ว่าถูกลบแล้ว กันคำขอเก่าจากเครื่องที่ออฟไลน์เขียนกลับมา
     return {status: "success", message: "already deleted", changed: false};
   }
   if (d.action) return {status: "error", code: "bad_request", message: "ไม่รู้จักคำสั่ง " + d.action};
   if (!isRecord_(d)) return {status: "error", code: "invalid_record", message: "ข้อมูลรายการไม่ครบ (ต้องมี id และประเภทรายรับ/รายจ่าย)"};
-  upsertRecord_(sheet, map, d);
-  return {status: "success", changed: true};
+  return upsertRecord_(sheet, map, d, ss);
 }
 
-function upsertRecord_(sheet, map, data) {
+// เวลาแก้ไขล่าสุดของรายการในแถวนี้ (อ่านจาก RAW_JSON) ใช้ตัดสินว่าเวอร์ชันไหนใหม่กว่า
+function recordTs_(sheet, map, row) {
+  if (!map['RAW_JSON']) return 0;
+  try {
+    var raw = sheet.getRange(row, map['RAW_JSON']).getValue();
+    if (raw && typeof raw === 'string' && raw.charAt(0) === '{') return Number(JSON.parse(raw).timestamp) || 0;
+  } catch (e) {}
+  return 0;
+}
+
+// รวมข้อมูลจากหลายเครื่อง: เวอร์ชันที่แก้ล่าสุด (timestamp ใหม่กว่า) ชนะ เครื่องที่ออฟไลน์ส่งของเก่ามาไม่ทับของใหม่
+// และรายการที่อีกเครื่องลบไปแล้วจะไม่ถูกเขียนกลับมา (ยกเว้นถูกสร้าง/เลิกลบใหม่หลังจากนั้น)
+function upsertRecord_(sheet, map, data, ss) {
   var width = sheet.getLastColumn();
   var rowIndex = findRowById_(sheet, map, data.id);
+  var inTs = Number(data.timestamp) || 0;
   var existing = null;
-  if (rowIndex > -1) existing = sheet.getRange(rowIndex, 1, 1, width).getValues()[0];
+  if (rowIndex > -1) {
+    if (inTs && recordTs_(sheet, map, rowIndex) > inTs) return {status: "success", message: "newer version kept", changed: false, stale: true};
+    existing = sheet.getRange(rowIndex, 1, 1, width).getValues()[0];
+  } else if (ss) {
+    var deletedAt = tombLookup_(ss, data.id);
+    if (deletedAt && inTs <= deletedAt) return {status: "success", message: "deleted on another device", changed: false, stale: true};
+    if (deletedAt) tombRemove_(ss, data.id);
+  }
   var row = buildRow_(data, map, existing, width);
   if (rowIndex > -1) {
     sheet.getRange(rowIndex, 1, 1, width).setValues([row]);
@@ -325,6 +354,58 @@ function upsertRecord_(sheet, map, data) {
     if (target > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), 500);
     sheet.getRange(target, 1, 1, width).setValues([row]);
   }
+  return {status: "success", changed: true};
+}
+
+// ------------------------------------------------------------
+//  บันทึกรายการที่ถูกลบ (แท็บซ่อน) ไว้กันรายการกลับมาเกิดใหม่จากเครื่องที่ออฟไลน์
+// ------------------------------------------------------------
+var SHEET_TOMB = '_ลบแล้ว';
+var tombCache_ = null;
+function tombSheet_(ss, create) {
+  var sh = ss.getSheetByName(SHEET_TOMB);
+  if (!sh && create) {
+    sh = ss.insertSheet(SHEET_TOMB);
+    sh.getRange(1, 1, 1, 2).setValues([['id', 'ลบเมื่อ (ms)']]);
+    try { sh.hideSheet(); } catch (e) {}
+  }
+  return sh;
+}
+function tombMap_(ss) {
+  if (tombCache_) return tombCache_;
+  var map = {};
+  var sh = tombSheet_(ss, false);
+  if (sh && sh.getLastRow() > 1) {
+    var vals = sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues();
+    for (var i = 0; i < vals.length; i++) if (vals[i][0] !== '') map[String(vals[i][0])] = Number(vals[i][1]) || 0;
+  }
+  tombCache_ = map;
+  return map;
+}
+function tombLookup_(ss, id) { return tombMap_(ss)[String(id)] || 0; }
+function tombAdd_(ss, id, ts) {
+  var map = tombMap_(ss);
+  id = String(id);
+  if (map[id] && map[id] >= ts) return;
+  var sh = tombSheet_(ss, true);
+  var existingRow = -1;
+  if (map[id]) {
+    var ids = sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 1).getValues();
+    for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === id) { existingRow = i + 2; break; }
+  }
+  if (existingRow > -1) sh.getRange(existingRow, 2).setValue(ts);
+  else sh.getRange(sh.getLastRow() + 1, 1, 1, 2).setValues([[id, ts]]);
+  map[id] = ts;
+  // เก็บแค่ล่าสุด ไม่ให้แท็บโตไม่จำกัด
+  if (sh.getLastRow() > 3001) { sh.deleteRows(2, 500); tombCache_ = null; }
+}
+function tombRemove_(ss, id) {
+  var sh = tombSheet_(ss, false);
+  var map = tombMap_(ss);
+  delete map[String(id)];
+  if (!sh || sh.getLastRow() < 2) return;
+  var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(id)) { sh.deleteRow(i + 2); tombCache_ = null; return; }
 }
 
 // ------------------------------------------------------------

@@ -44,6 +44,7 @@ class Sheet {
     for (const [k, v] of this.cells) { const [rr, cc] = k.split(',').map(Number); if (rr < r) nc.set(k, v); else if (rr > r) nc.set((rr - 1) + ',' + cc, v); }
     this.cells = nc;
   }
+  deleteRows(start, n) { for (let i = 0; i < n; i++) this.deleteRow(start); }
   appendRow(vals) { const r = this.getLastRow() + 1; vals.forEach((v, i) => this.set(r, i + 1, v)); }
   getCharts() { return []; }
   insertChart() { this.charts++; }

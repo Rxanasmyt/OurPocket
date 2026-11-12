@@ -18,7 +18,8 @@
     "test:features2": "node tests/gas/features2.js",
     "test:onboarding": "node tests/gas/onboarding.js",
     "test:monkey": "node tests/gas/monkey.js",
-    "test:monkey-sync": "node tests/gas/monkey-sync.js"
+    "test:monkey-sync": "node tests/gas/monkey-sync.js",
+    "test:merge": "node tests/gas/merge.js"
   },
   "devDependencies": {
     "@phosphor-icons/core": "2.1.1",
