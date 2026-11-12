@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.36.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.37.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -113,11 +113,11 @@
         @keyframes delBackOut { to { opacity: 0; } }
         @keyframes delCard { from { opacity: 0; transform: translateY(18px) scale(0.92); } to { opacity: 1; transform: none; } }
         @keyframes delCardOut { to { opacity: 0; transform: translateY(10px) scale(0.96); } }
-        #delConfirm { animation: delBack 0.2s ease both; }
-        #delConfirm .del-card { animation: delCard 0.45s var(--spring) both; }
+        #delConfirm, #payConfirm { animation: delBack 0.2s ease both; }
+        #delConfirm .del-card, #payConfirm .del-card { animation: delCard 0.45s var(--spring) both; }
         #delConfirm .del-card.shake { animation: shake 0.45s var(--ease-standard); }
-        #delConfirm.out { animation: delBackOut 0.18s ease both; pointer-events: none; }
-        #delConfirm.out .del-card { animation: delCardOut 0.18s ease both; }
+        #delConfirm.out, #payConfirm.out { animation: delBackOut 0.18s ease both; pointer-events: none; }
+        #delConfirm.out .del-card, #payConfirm.out .del-card { animation: delCardOut 0.18s ease both; }
         #onboard { animation: delBack 0.25s ease both; }
         #onboard .ob-card { animation: delCard 0.5s var(--spring) both; }
         #onboard.out { animation: delBackOut 0.2s ease both; pointer-events: none; }
@@ -1987,7 +1987,7 @@
                             <div class="text-right flex items-center shrink-0">
                                 <div class="flex flex-col items-end mr-2">
                                     <p class="money font-bold text-red-600">-${formatMoney(t.amount)}</p>
-                                    <button onclick="window.toggleStatus('${t.id}')" class="text-xs flex items-center gap-1 ${t.isCompleted ? 'text-green-600' : 'text-orange-500'}"><i class="ph-fill ${t.isCompleted ? 'ph-check-circle' : 'ph-clock'}"></i> ${t.isCompleted ? 'จ่ายแล้ว' : 'รอจ่าย'}</button>
+                                    <button onclick="window.requestToggle('${t.id}')" class="text-xs flex items-center gap-1 ${t.isCompleted ? 'text-green-600' : 'text-orange-500'}"><i class="ph-fill ${t.isCompleted ? 'ph-check-circle' : 'ph-clock'}"></i> ${t.isCompleted ? 'จ่ายแล้ว' : 'รอจ่าย'}</button>
                                 </div>
                                 <i class="ph-bold ph-caret-right text-gray-300 text-sm ml-1" aria-hidden="true"></i>
                             </div>
@@ -2429,13 +2429,13 @@
             const t = allTransactions.find(x => x.id === id);
             if (!t) return;
             if (billKind(t) === 'minpay') { window.editItem(id, true); window.showToast('ใส่จำนวนที่จ่ายจริง แล้วกดอัปเดตข้อมูล'); }
-            else {
+            else window.requestPay(id, () => {
                 const card = document.querySelector(`[data-pay-id="${String(id).replace(/"/g, '')}"]`);
                 const payBtn = card && card.querySelector('button');
                 if (payBtn) { const r = payBtn.getBoundingClientRect(); miniBurst(r.left + r.width / 2, r.top + r.height / 2); }
                 if (collapseOut(card, 'paid')) renderDelay = 360;   // รอให้การ์ดยุบตัวเสร็จก่อนวาดหน้าใหม่
                 window.toggleStatus(id);
-            }
+            });
         };
 
         // ===== เอฟเฟกต์ระดับแอปทางการ: เลื่อนถึงแล้วค่อยปรากฏ / สั่นเมื่อกรอกผิด / ติ๊กถูกเมื่อบันทึกสำเร็จ =====
@@ -2669,9 +2669,12 @@
                     const cur = allTransactions.find(x => x.id === t.id);
                     if (cur) {
                         const wasPaid = cur.isCompleted;
-                        if (!wasPaid) { const r = card.getBoundingClientRect(); miniBurst(r.left + 70, r.top + r.height / 2); }
-                        window.toggleStatus(t.id);
-                        window.showToast(wasPaid ? 'เปลี่ยนเป็นยังไม่จ่าย' : 'จ่ายแล้ว ✓', 'success', { action: { label: 'เลิกทำ', fn: () => window.toggleStatus(t.id) }, duration: 5000 });
+                        const perform = () => {
+                            if (!wasPaid) { const r = card.getBoundingClientRect(); miniBurst(r.left + 70, r.top + r.height / 2); }
+                            window.toggleStatus(t.id);
+                            window.showToast(wasPaid ? 'เปลี่ยนเป็นยังไม่จ่าย' : 'จ่ายแล้ว ✓', 'success', { action: { label: 'เลิกทำ', fn: () => window.toggleStatus(t.id) }, duration: 5000 });
+                        };
+                        if (wasPaid) perform(); else window.requestPay(t.id, perform);
                     }
                 } else {
                     card.style.transform = '';
@@ -2712,7 +2715,7 @@
         window.rowMenuAction = (kind, id) => {
             window.closeModal();
             if (kind === 'edit') window.editItem(id);
-            else if (kind === 'paid') window.toggleStatus(id);
+            else if (kind === 'paid') window.requestToggle(id);
             else if (kind === 'dup') duplicateItem(id);
             else if (kind === 'del') window.requestDelete(id);
         };
@@ -3098,6 +3101,49 @@
         }
 
         window.toggleStatus = (id) => { const i = allTransactions.find(t=>t.id===id); if(i){ i.isCompleted = !i.isCompleted; i.timestamp = Date.now(); if (i.isCompleted) celebrateArmed = Date.now(); window.saveAndSync(i); } };
+        // ===== ยืนยันก่อนกด "จ่ายแล้ว": กันกดพลาด (ปัดโดนหรือแตะผิดบิล) ยกเลิกการจ่ายกลับเป็น "ยังไม่จ่าย" ไม่ต้องยืนยัน =====
+        window.requestPay = (id, onConfirm, onCancel) => {
+            const t = allTransactions.find(x => x.id === id);
+            if (!t || t.type !== 'expense' || t.isCompleted) { if (onConfirm) onConfirm(); return; }
+            const old = document.getElementById('payConfirm'); if (old) old.remove();
+            const d = daysFromToday(t.date);
+            const due = d < 0 ? `เกินกำหนด ${-d} วัน` : d === 0 ? 'ครบกำหนดวันนี้' : `ครบกำหนด ${formatDate(t.date)}`;
+            const kind = billKind(t);
+            const extra = kind === 'installment' ? `งวด ${parseInt(t.currentInstallment) || 1}/${parseInt(t.totalInstallments) || 1}` : kind === 'minpay' ? 'จ่ายขั้นต่ำ' : '';
+            const box = document.createElement('div');
+            box.id = 'payConfirm';
+            box.className = 'fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm';
+            box.setAttribute('role', 'alertdialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'payTitle');
+            box.innerHTML = `<div class="del-card bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6">
+                <div class="w-12 h-12 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center text-2xl mx-auto mb-3"><i class="ph-bold ph-check-circle"></i></div>
+                <h3 id="payTitle" class="text-lg font-bold text-center text-gray-800">ยืนยันว่าจ่ายแล้ว?</h3>
+                <p class="text-center text-sm text-gray-600 mt-1 break-words"><b>${escapeHTML(t.description || '(ไม่มีชื่อ)')}</b></p>
+                <p class="money text-center text-2xl font-bold text-expense mt-1">${formatMoney(t.amount)}</p>
+                <p class="text-center text-xs text-gray-500 mt-1">${escapeHTML([t.bank, extra, due].filter(Boolean).join(' · '))}</p>
+                ${t.note ? `<p class="text-center text-[11px] text-gray-400 italic mt-1 break-words">โน้ต: ${escapeHTML(t.note)}</p>` : ''}
+                <div class="grid grid-cols-2 gap-3 mt-5">
+                    <button type="button" id="payCancel" class="py-3 rounded-xl font-medium text-gray-600 bg-gray-100">ยังไม่จ่าย</button>
+                    <button type="button" id="payOk" class="py-3 rounded-xl font-medium text-white bg-green-600 shadow-lg shadow-green-200">จ่ายแล้ว ✓</button>
+                </div>
+            </div>`;
+            document.body.appendChild(box);
+            let done = false;
+            const close = (ok) => {
+                if (done) return; done = true;
+                document.removeEventListener('keydown', onKey, true);
+                if (prefersReduced()) box.remove(); else { box.classList.add('out'); setTimeout(() => box.remove(), 190); }
+                if (ok) { haptic(14); if (onConfirm) onConfirm(); } else if (onCancel) onCancel();
+            };
+            const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(false); } };
+            document.addEventListener('keydown', onKey, true);
+            box.addEventListener('click', (e) => { if (e.target === box) close(false); });
+            box.querySelector('#payCancel').onclick = () => close(false);
+            box.querySelector('#payOk').onclick = () => close(true);
+            setTimeout(() => { const f = box.querySelector('#payOk'); if (f) f.focus(); }, 30);
+        };
+        // สลับสถานะจ่าย: ยังไม่จ่าย -> จ่ายแล้ว ต้องยืนยันก่อน, จ่ายแล้ว -> ยังไม่จ่าย ทำทันที
+        window.requestToggle = (id) => { window.requestPay(id, () => window.toggleStatus(id)); };
+
         // ===== ยืนยันก่อนลบ: ถ้าตั้งรหัสผ่านซิงค์ไว้ ต้องพิมพ์รหัสให้ตรงก่อน (กันกดลบพลาด/คนอื่นหยิบมือถือไปลบ) =====
         window.requestDelete = (id, onCancel) => {
             const item = allTransactions.find(t => t.id === id);

@@ -71,7 +71,7 @@ async function open(browser, reduced) {
   console.log('== coin burst + flick-to-dismiss ==');
   await p.evaluate(() => window.scrollTo(0, 0));
   await p.evaluate(() => document.getElementById('remindersSection').scrollIntoView({ block: 'center' })); await p.waitForTimeout(600);
-  await p.evaluate(() => window.payBill('b2'));
+  await p.evaluate(() => window.payBill('b2')); await p.waitForTimeout(250); await p.click('#payOk');
   ok(await p.$$eval('.mini-piece', (e) => e.length) === 12, 'paying a bill sprays 12 coins from the button');
   await p.waitForTimeout(1300);
   ok(await p.evaluate(() => !document.querySelector('.mini-piece')), 'and cleans them up');

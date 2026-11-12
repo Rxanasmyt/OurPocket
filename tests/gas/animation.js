@@ -74,7 +74,7 @@ const swipe = async (p, sel, from, to) => { await touch(p, sel, 'touchstart', fr
   ok((await p.evaluate(() => JSON.parse(localStorage.getItem('ourWalletData')).some((t) => t.id === 'e2'))) === false, 'data removed immediately (safe even if closed mid-animation)');
   await p.waitForTimeout(600);
   ok(await p.evaluate(() => !document.querySelector('#transactionsList [data-id="e2"]')), 'row gone after animation');
-  await p.evaluate(() => window.payBill('e1'));
+  await p.evaluate(() => window.payBill('e1')); await p.waitForTimeout(250); await p.click('#payOk');
   ok(await p.evaluate(() => { const c = document.querySelector('[data-pay-id="e1"]'); return c && c.classList.contains('removing') && c.classList.contains('paid'); }), 'paid bill flashes green and leaves the plan');
   ok(await p.evaluate(() => JSON.parse(localStorage.getItem('ourWalletData')).find((t) => t.id === 'e1').isCompleted === true), 'paid state saved immediately');
   await p.waitForTimeout(700);

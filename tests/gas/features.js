@@ -70,7 +70,9 @@ const seed = [
   ok(await p.evaluate(() => document.getElementById('expenseModal').classList.contains('flex') && document.getElementById('expDesc').value === 'ค่าไฟ'), 'tap on a row opens it for editing');
   await p.evaluate(() => window.closeModal()); await p.waitForTimeout(350);
   await drag(rowSel('e2'), 130); await p.waitForTimeout(300);
-  ok((await recs()).find((t) => t.id === 'e2').isCompleted === true, 'swipe right marks the bill paid');
+  ok((await recs()).find((t) => t.id === 'e2').isCompleted === false && await p.isVisible('#payConfirm'), 'swipe right asks to confirm first');
+  await p.click('#payOk'); await p.waitForTimeout(400);
+  ok((await recs()).find((t) => t.id === 'e2').isCompleted === true, 'swipe right marks the bill paid after confirming');
   ok((await toasts()).some((t) => t.includes('จ่ายแล้ว')) , 'toast confirms');
   await p.click('.toast-action:last-of-type'); await p.waitForTimeout(300);
   ok((await recs()).find((t) => t.id === 'e2').isCompleted === false, 'undo reverts the payment');

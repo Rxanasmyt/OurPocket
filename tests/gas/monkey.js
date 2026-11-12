@@ -64,6 +64,7 @@ const issuesAll = [];
     () => act('clearFilters', () => ev(() => window.clearFilters())),
     async () => { const id = await randId(); if (id) await act('requestDelete', () => ev((i) => window.requestDelete(i), id)); },
     () => act('delAnswer', () => ev((ok) => { const b = document.getElementById(ok ? 'delOk' : 'delCancel'); if (b) b.click(); }, rnd() < 0.5)),
+    () => act('payAnswer', () => ev((ok) => { const b = document.getElementById(ok ? 'payOk' : 'payCancel'); if (b) b.click(); }, rnd() < 0.6)),
     () => act('reload', async () => { await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(1200); })
   ];
 

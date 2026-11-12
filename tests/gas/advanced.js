@@ -50,6 +50,7 @@ function startServer(env, port, slowMs = 0) {
   const shift = await p.$eval(card('e1'), (e) => parseFloat(e.style.transform.replace(/[^\d.-]/g, '')));
   ok(shift > 140 && shift <= 225, 'dragging far gets heavier (rubber band) instead of following 1:1: ' + Math.round(shift) + 'px for 300px of finger');
   await ptr(card('e1'), 'pointerup', 500, 300); await p.waitForTimeout(500);
+  await p.click('#payOk'); await p.waitForTimeout(400);
   await p.click('.toast-action:last-of-type'); await p.waitForTimeout(400);
 
   console.log('== long-press menu ==');
