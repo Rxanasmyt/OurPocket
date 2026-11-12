@@ -19,7 +19,7 @@ ok(JSON.stringify(names) === JSON.stringify(['สรุป', 'ลำดับจ
 ok(env.props.get('setupErrors') === '', 'no setup errors: "' + env.props.get('setupErrors') + '"');
 const data = env.ss.getSheetByName('รายการ');
 const hdr = data.getRange(1, 1, 1, data.getLastColumn()).getValues()[0];
-ok(hdr.length === 24, 'headers = 24: ' + hdr.length);
+ok(hdr.length === 25, 'headers = 25: ' + hdr.length);
 const row = (n) => { const o = {}; data.getRange(n, 1, 1, hdr.length).getValues()[0].forEach((v, i) => (o[hdr[i]] = v)); return o; };
 let r2 = row(2);
 ok(r2['ประเภท'] === 'รายรับ' && r2['จำนวนเงิน'] === 29100 && r2['ยอดก่อนหัก'] === 30000 && r2['หัก ณ ที่จ่าย %'] === 3 && r2['ที่มา'] === 'กรอกเอง', 'income row complete: ' + JSON.stringify(r2).slice(0, 220));
@@ -79,7 +79,7 @@ const legacyRow = ['รายจ่าย', '2026-10-05', '2026-10', 'อาห�
 legacyRow.forEach((v, c) => old.set(2, c + 1, v));
 env.post({ action: 'sync' });
 const dh = old.getRange(1, 1, 1, old.getLastColumn()).getValues()[0];
-ok(old.name === 'รายการ' && dh.length === 24 && dh.slice(0, 18).join() === OLD.join(), 'old sheet renamed + 6 columns appended after the old 18: ' + dh.length);
+ok(old.name === 'รายการ' && dh.length === 25 && dh.slice(0, 18).join() === OLD.join(), 'old sheet renamed + 7 columns appended after the old 18: ' + dh.length);
 const lr = {}; old.getRange(2, 1, 1, dh.length).getValues()[0].forEach((v, i) => (lr[dh[i]] = v));
 ok(lr['ID'] === 'old1' && lr['จำนวนเงิน'] === 120 && lr['บันทึกเมื่อ'] === '05/10/2026 12:00:00', 'legacy row preserved (id, amount, original saved-at)');
 ok(lr['ยอดเต็มบิล'] === '' && lr['งวดที่'] === '' && lr['ที่มา'] === 'กรอกเอง', "legacy '-' placeholders cleaned to blanks, new columns backfilled");
@@ -191,6 +191,20 @@ const pd2 = pp.ss.getSheetByName('รายการ');
 const ph = pd2.getRange(1, 1, 1, pd2.getLastColumn()).getValues()[0];
 const pcol = ph.indexOf('เงินประจำเดือน') + 1;
 ok(pcol > 0 && pd2.getRange(2, pcol).getValue() === '2026-10' && pd2.getRange(3, pcol).getValue() === '', 'pay-period column filled only when the income has one');
+
+console.log('== note column + new income category ==');
+const nt = makeEnv({ sheets: ['Sheet1'] });
+nt.post({ ...rec.income, id: 'n1', category: 'ค่า ฉ.10 และ ฉ.11', note: 'รับพร้อมกัน =1+1' });
+nt.post({ ...rec.normal, id: 'n2' });
+const nd = nt.ss.getSheetByName('รายการ');
+const nh = nd.getRange(1, 1, 1, nd.getLastColumn()).getValues()[0];
+const ncol = nh.indexOf('โน้ต') + 1, ccol = nh.indexOf('หมวดหมู่') + 1;
+ok(ncol > 0 && nd.getRange(2, ncol).getValue() === 'รับพร้อมกัน =1+1' && nd.getRange(3, ncol).getValue() === '', 'note stored as text, blank when none');
+ok(nd.getRange(2, ccol).getValue() === 'ค่า ฉ.10 และ ฉ.11', 'new income category saved');
+const dsh = nt.ss.getSheetByName('สรุป');
+const jcats = []; for (let r = 11; r <= 19; r++) jcats.push(dsh.getRange(r, 10).getValue());
+ok(jcats.includes('ค่า ฉ.10 และ ฉ.11') && jcats.length === 9, 'dashboard income table lists the new category (9 rows)');
+ok(/^=SUM\(K11:K19\)/.test(dsh.formulas.get('20,11') || ''), 'income total moved to row 20 and sums all 9 categories');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

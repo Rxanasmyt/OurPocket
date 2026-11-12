@@ -72,7 +72,7 @@ ok(cell('สรุป', 'B22') === 34100 && cell('สรุป', 'B21') === 2910
 ok(cell('สรุป', 'D21') === cell('สรุป', 'B21') - cell('สรุป', 'C21'), 'net col');
 ok(cell('สรุป', 'F11') === 'อาหาร' && cell('สรุป', 'G11') === 1200, 'category อาหาร this month = ' + cell('สรุป', 'G11'));
 ok(cell('สรุป', 'K11') === 29100 && cell('สรุป', 'K14') === 5000, 'income by type: เงินเดือน ' + cell('สรุป', 'K11') + ', ค่าเวร ' + cell('สรุป', 'K14'));
-ok(cell('สรุป', 'K19') === 34100, 'income total = ' + cell('สรุป', 'K19'));
+ok(cell('สรุป', 'K20') === 34100, 'income total = ' + cell('สรุป', 'K20'));
 ok(cell('สรุป', 'G22') === 29100 && cell('สรุป', 'H22') >= 1200, 'Anas income/expense: ' + cell('สรุป', 'G22') + '/' + cell('สรุป', 'H22'));
 ok(cell('สรุป', 'G23') === 5000, 'Phada income = ' + cell('สรุป', 'G23'));
 const bankRows = {}; for (let r = 23; r <= 31; r++) bankRows[cell('สรุป', 'J' + r)] = cell('สรุป', 'K' + r);

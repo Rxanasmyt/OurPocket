@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // --- ระบบเช็คเวอร์ชันอัตโนมัติ (Auto-Update) ---
-        const APP_VERSION = "3.34.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
+        const APP_VERSION = "3.35.0"; // อัปเดตเวอร์ชันเป็น 3.0.0 สำหรับระบบงบประมาณและคัดลอกบิลประจำ
         const savedVersion = localStorage.getItem('appVersion');
         if (savedVersion && savedVersion !== APP_VERSION) {
             localStorage.setItem('appVersion', APP_VERSION);
@@ -636,10 +636,11 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
                         <select id="incCategory" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white">
-                            <option value="เงินเดือน">เงินเดือน</option><option value="ค่าเสี่ยงภัย">ค่าเสี่ยงภัย</option><option value="ค่า พตส">ค่า พตส</option><option value="ค่าเวร">ค่าเวร</option><option value="ค่าใบประกอบ">ค่าใบประกอบ</option><option value="ค่า ฉ.10">ค่า ฉ.10</option><option value="ค่า ฉ.11">ค่า ฉ.11</option><option value="ค่าเงินประจำตำแหน่ง">ค่าเงินประจำตำแหน่ง</option>
+                            <option value="เงินเดือน">เงินเดือน</option><option value="ค่าเสี่ยงภัย">ค่าเสี่ยงภัย</option><option value="ค่า พตส">ค่า พตส</option><option value="ค่าเวร">ค่าเวร</option><option value="ค่าใบประกอบ">ค่าใบประกอบ</option><option value="ค่า ฉ.10">ค่า ฉ.10</option><option value="ค่า ฉ.11">ค่า ฉ.11</option><option value="ค่า ฉ.10 และ ฉ.11">ค่า ฉ.10 และ ฉ.11</option><option value="ค่าเงินประจำตำแหน่ง">ค่าเงินประจำตำแหน่ง</option>
                         </select>
                     </div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label><input type="text" id="incDesc" list="incDescList" autocomplete="off" maxlength="200" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200"></div>
+                    <div><label for="incNote" class="block text-sm font-medium text-gray-700 mb-1">โน้ต <span class="text-xs font-normal text-gray-400">(ไม่บังคับ)</span></label><textarea id="incNote" rows="2" maxlength="300" placeholder="รายละเอียดเล็กน้อยที่อยากจดไว้" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"></textarea></div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label><input type="number" inputmode="decimal" max="99999999.99" id="incAmount" required step="0.01" min="0" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold"></div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">หัก ณ ที่จ่าย</label>
@@ -691,6 +692,7 @@
                         </div>
                     </div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียดรายการ</label><input type="text" id="expDesc" list="expDescList" autocomplete="off" maxlength="200" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200"></div>
+                    <div><label for="expNote" class="block text-sm font-medium text-gray-700 mb-1">โน้ต <span class="text-xs font-normal text-gray-400">(ไม่บังคับ)</span></label><textarea id="expNote" rows="2" maxlength="300" placeholder="รายละเอียดเล็กน้อยที่อยากจดไว้" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"></textarea></div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">ช่องทางจ่าย</label>
                         <select id="expBank" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white">
@@ -1151,6 +1153,7 @@
                     timestamp: new Date().getTime()
                 };
                 if (document.getElementById('incRecurring').checked) data.recurring = true;
+                { const nt = document.getElementById('incNote').value.trim(); if (nt) data.note = nt; }
                 // periodMonth = เงินของเดือนไหน, monthYear = เดือนที่นับเป็นรายรับ (เดือนถัดจากเดือนประจำ), date = วันที่รับเงินจริง
                 data.periodMonth = document.getElementById('incPeriod').value || defaultPeriod(data.date);
                 data.monthYear = addMonth(data.periodMonth, 1);
@@ -1226,6 +1229,7 @@
                     timestamp: new Date().getTime(),
                     ...extra
                 };
+                { const nt = document.getElementById('expNote').value.trim(); if (nt) data.note = nt; }
                 const prevItem = currentEditId ? allTransactions.find(t => t.id === currentEditId) : null;
                 if (prevItem) {
                     if (billKind(prevItem) !== 'normal') data.seriesId = seriesOf(prevItem); // แก้ชื่อ/ธนาคารแล้วยังเป็นบิลชุดเดิม ไม่สร้างบิลซ้ำ
@@ -1453,6 +1457,7 @@
                 setSelect('incWho', item.who || 'Anas');
                 setSelect('incCategory', item.category);
                 document.getElementById('incDesc').value = item.description;
+                document.getElementById('incNote').value = item.note || '';
                 document.getElementById('incAmount').value = item.amount;
                 setSelect('incTaxRate', String(item.taxRate || 0), 'หัก ' + (item.taxRate || 0) + '%');
                 document.getElementById('incRecurring').checked = !!item.recurring;
@@ -1467,6 +1472,7 @@
                 setSelect('expWho', item.who || 'Anas');
                 setSelect('expCategory', item.category);
                 document.getElementById('expDesc').value = item.description;
+                document.getElementById('expNote').value = item.note || '';
                 setSelect('expBank', item.bank || 'เงินสด');
                 document.getElementById('expCurInstall').value = item.currentInstallment || '';
                 document.getElementById('expTotalInstall').value = item.totalInstallments || '';
@@ -1883,6 +1889,7 @@
                     (t.category || "").toLowerCase().includes(searchQuery) ||
                     (t.who || "").toLowerCase().includes(searchQuery) ||
                     (t.bank || "").toLowerCase().includes(searchQuery) ||
+                    (t.note || "").toLowerCase().includes(searchQuery) ||
                     String(t.type === 'income' ? t.netAmount : t.amount).includes(searchQuery)
                 );
             }
@@ -1937,6 +1944,7 @@
                         list.appendChild(head);
                     }
                     const safeDesc = escapeHTML(t.description);
+                    const noteLine = t.note ? `<p class="text-[11px] text-gray-400 italic mt-0.5 break-words">โน้ต: ${escapeHTML(t.note)}</p>` : '';
                     const safeCat = escapeHTML(t.category);
                     const whoBadge = t.who && t.who !== 'กองกลาง' ? `<span class="bg-blue-50 text-blue-600 px-1 rounded ml-1">${escapeHTML(t.who)}</span>` : '';
 
@@ -1957,7 +1965,7 @@
                         div.innerHTML = `
                             <div class="flex items-center gap-3 min-w-0">
                                 <div class="bg-green-100 text-green-600 w-10 h-10 rounded-full hidden min-[420px]:flex items-center justify-center shrink-0"><i class="ph-bold ph-arrow-down-left text-xl"></i></div>
-                                <div class="min-w-0"><p class="font-medium text-gray-800 break-words">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500">${safeCat} • ${formatDate(t.date)} ${taxBadge}${useBadge}</p></div>
+                                <div class="min-w-0"><p class="font-medium text-gray-800 break-words">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500">${safeCat} • ${formatDate(t.date)} ${taxBadge}${useBadge}</p>${noteLine}</div>
                             </div>
                             <div class="text-right flex items-center shrink-0">
                                 <div><p class="money font-bold text-green-600 mr-2">+${formatMoney(t.netAmount)}</p></div>
@@ -1970,7 +1978,7 @@
                         div.innerHTML = `
                             <div class="flex items-center gap-3 min-w-0">
                                 <div class="bg-red-100 text-red-600 w-10 h-10 rounded-full hidden min-[420px]:flex items-center justify-center shrink-0"><i class="ph-bold ph-arrow-up-right text-xl"></i></div>
-                                <div class="min-w-0"><p class="font-medium text-gray-800 break-words">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500 flex flex-wrap items-center gap-1"><span>${safeCat} • ${formatDate(t.date)}</span>${bankChip(t.bank)}${billKind(t) !== 'normal' ? typeChip(t) : ''}${installBadge}${minBadge}</p></div>
+                                <div class="min-w-0"><p class="font-medium text-gray-800 break-words">${safeDesc} ${whoBadge}</p><p class="text-xs text-gray-500 flex flex-wrap items-center gap-1"><span>${safeCat} • ${formatDate(t.date)}</span>${bankChip(t.bank)}${billKind(t) !== 'normal' ? typeChip(t) : ''}${installBadge}${minBadge}</p>${noteLine}</div>
                             </div>
                             <div class="text-right flex items-center shrink-0">
                                 <div class="flex flex-col items-end mr-2">
@@ -2393,6 +2401,7 @@
                             <div class="flex flex-wrap items-center gap-1 mt-1">${typeChip(t)}</div>
                             <p class="text-xs font-bold mt-1 ${dueCls(d)}">${dueText(d)} · ${formatDate(t.date)}</p>
                             ${extra}
+                            ${t.note ? `<p class="text-[11px] text-gray-400 italic mt-0.5 break-words">โน้ต: ${escapeHTML(t.note)}</p>` : ''}
                         </div>
                         <div class="text-right shrink-0">
                             <p class="money font-bold text-red-600 text-sm">-${formatMoney(t.amount)}</p>

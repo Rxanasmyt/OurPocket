@@ -25,7 +25,7 @@ const seed = [
   await p.goto('http://localhost:8080/index.html', { waitUntil: 'load' }); await p.waitForTimeout(1800);
 
   console.log('== dashboard graphics ==');
-  const expTotal = 3000 + 1000 + 500 + 700 + 800;
+  const expTotal = seed.filter((t) => t.type === 'expense' && t.monthYear === M0).reduce((a, t) => a + t.amount, 0);   // บิลที่ครบกำหนดข้ามเดือนไม่นับในเดือนนี้
   const pct = Math.round(expTotal / 30000 * 100);
   const off = await p.$eval('#flowRing', (e) => parseFloat(e.style.strokeDashoffset));
   ok(Math.abs(off - 213.6 * (1 - expTotal / 30000)) < 1 && (await p.textContent('#flowRingText')) === pct + '%', `ring shows ${pct}% of income spent (offset ${off.toFixed(1)})`);

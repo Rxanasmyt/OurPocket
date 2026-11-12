@@ -27,14 +27,14 @@ var SHEET_PLAN = 'ลำดับจ่าย';
 var SHEET_MONTH = 'รายเดือน';
 var SHEET_SET = 'ตั้งค่า';
 var SHEET_FILTER = 'ค้นหา';
-var SETUP_VERSION = 'v16';
+var SETUP_VERSION = 'v17';
 // API_VERSION: เพิ่มทุกครั้งที่รูปแบบการคุยกับแอปเปลี่ยน (แอปจะไม่ส่งข้อมูลถ้าสคริปต์เก่ากว่าที่แอปต้องการ)
 var API_VERSION = 8;
 var SCRIPT_VERSION = 'Our Wallet script v' + API_VERSION;
 
 var EXPENSE_CATEGORIES = ['อาหาร', 'เดินทาง', 'ช้อปปิ้ง', 'ที่พัก', 'สุขภาพ', 'หนี้สิน', 'อื่นๆ'];
 var PEOPLE = ['Anas', 'Phada'];
-var INCOME_CATEGORIES = ['เงินเดือน', 'ค่าเสี่ยงภัย', 'ค่า พตส', 'ค่าเวร', 'ค่าใบประกอบ', 'ค่า ฉ.10', 'ค่า ฉ.11', 'ค่าเงินประจำตำแหน่ง'];
+var INCOME_CATEGORIES = ['เงินเดือน', 'ค่าเสี่ยงภัย', 'ค่า พตส', 'ค่าเวร', 'ค่าใบประกอบ', 'ค่า ฉ.10', 'ค่า ฉ.11', 'ค่า ฉ.10 และ ฉ.11', 'ค่าเงินประจำตำแหน่ง'];
 
 // สีธนาคาร (ตรงกับในแอป)
 var BANK_ORDER = ['KBank', 'SCB', 'BBL', 'KTB', 'กรุงศรี', 'ttb', 'ออมสิน', 'Credit Card', 'เงินสด'];
@@ -100,7 +100,9 @@ var SCHEMA = [
   {h: 'นับเป็นเดือนถัดไป', w: 110, align: 'center', get: function (d) { return (isIncome_(d) && d.useNext) ? 'ใช่' : ''; }},
   // ---- เพิ่มใน v16 ----
   // เงินประจำเดือน (เช่น เงินเดือนของ 2026-10) ไว้ตรวจย้อนหลัง: รับได้ตั้งแต่วันที่ 25 ของเดือนนั้นถึงวันที่ 20 ของเดือนถัดไป
-  {h: 'เงินประจำเดือน', w: 110, fmt: '@', align: 'center', get: function (d) { return (isIncome_(d) && d.periodMonth) ? String(d.periodMonth) : ''; }}
+  {h: 'เงินประจำเดือน', w: 110, fmt: '@', align: 'center', get: function (d) { return (isIncome_(d) && d.periodMonth) ? String(d.periodMonth) : ''; }},
+  // ---- เพิ่มใน v17 ----
+  {h: 'โน้ต', w: 240, fmt: '@', get: function (d) { return d.note ? String(d.note) : ''; }}
 ];
 
 // ------------------------------------------------------------
@@ -765,11 +767,12 @@ function buildDashboard_(ss) {
     sh.getRange(ir, 10).setValue(INCOME_CATEGORIES[q]);
     sh.getRange(ir, 11).setFormula('=SUMIFS(' + F.amt + ',' + F.typ + ',"รายรับ",' + F.cat + ',$J' + ir + ',' + F.mon + ',$B$2)');
   }
-  sh.getRange('K11:K18').setNumberFormat('#,##0').setHorizontalAlignment('right').setFontColor('#047857');
-  sh.getRange('J11:K18').setBorder(null, null, true, null, null, true, '#d1fae5', SpreadsheetApp.BorderStyle.SOLID);
-  sh.getRange('J19:K19').setValues([['รวม', '']]);
-  sh.getRange('K19').setFormula('=SUM(K11:K18)').setNumberFormat('#,##0').setHorizontalAlignment('right');
-  sh.getRange('J19:K19').setFontWeight('bold').setBackground('#ecfdf5');
+  var incLast = 10 + INCOME_CATEGORIES.length, incTotal = incLast + 1;   // แถวสุดท้ายของหมวด และแถวรวม (ต้องไม่ชนหัวตารางธนาคารที่แถว 21)
+  sh.getRange('K11:K' + incLast).setNumberFormat('#,##0').setHorizontalAlignment('right').setFontColor('#047857');
+  sh.getRange('J11:K' + incLast).setBorder(null, null, true, null, null, true, '#d1fae5', SpreadsheetApp.BorderStyle.SOLID);
+  sh.getRange('J' + incTotal + ':K' + incTotal).setValues([['รวม', '']]);
+  sh.getRange('K' + incTotal).setFormula('=SUM(K11:K' + incLast + ')').setNumberFormat('#,##0').setHorizontalAlignment('right');
+  sh.getRange('J' + incTotal + ':K' + incTotal).setFontWeight('bold').setBackground('#ecfdf5');
 
   // ตารางที่ 4: แยกตามคน
   sectionTitle_(sh, 'F20:H20', '👫 แยกตามคน (เดือนที่เลือก)');
@@ -830,7 +833,7 @@ function buildDashboard_(ss) {
   // กราฟ
   sectionTitle_(sh, 'A33:K33', '📊 กราฟสรุป');
   var PINKS = ['#ff4d6d', '#f59e0b', '#8b5cf6', '#0ea5e9', '#10b981', '#c9184a', '#9ca3af'];
-  var GREENS = ['#059669', '#10b981', '#34d399', '#6ee7b7', '#047857', '#065f46', '#a7f3d0', '#16a34a'];
+  var GREENS = ['#059669', '#10b981', '#34d399', '#6ee7b7', '#047857', '#065f46', '#a7f3d0', '#16a34a', '#4ade80'];
 
   sh.insertChart(sh.newChart().asColumnChart()
     .addRange(sh.getRange('A10:C22')).setNumHeaders(1)
@@ -853,7 +856,7 @@ function buildDashboard_(ss) {
     .setOption('width', 450).setOption('height', 300).setPosition(50, 1, 0, 6).build());
 
   sh.insertChart(sh.newChart().asPieChart()
-    .addRange(sh.getRange('J10:K18')).setNumHeaders(1)
+    .addRange(sh.getRange('J10:K' + incLast)).setNumHeaders(1)
     .setOption('title', 'รายรับตามประเภท (เดือนที่เลือก)')
     .setOption('pieHole', 0.5).setOption('colors', GREENS).setOption('legend', {position: 'right'}).setOption('pieSliceText', 'percentage')
     .setOption('width', 520).setOption('height', 300).setPosition(50, 6, 10, 6).build());
@@ -1180,7 +1183,7 @@ function buildFilter_(ss) {
     + '&IF($B$5="' + ALL + '",""," and ' + L('ธนาคาร') + '=\'"&$B$5&"\'")'
     + '&IF($B$6="' + ALL + '",""," and ' + L('หมวดหมู่') + '=\'"&$B$6&"\'")'
     + '&IF($B$7="' + ALL + '",""," and ' + L('สถานะ') + '=\'"&$B$7&"\'")'
-    + '&IF($B$8="",""," and lower(' + L('รายการ') + ') contains \'"&LOWER(SUBSTITUTE($B$8,"\'",""))&"\'")';
+    + '&IF($B$8="",""," and (lower(' + L('รายการ') + ') contains \'"&LOWER(SUBSTITUTE($B$8,"\'",""))&"\' or lower(' + L('โน้ต') + ') contains \'"&LOWER(SUBSTITUTE($B$8,"\'",""))&"\')")';
   sh.getRange('A12').setFormula(
     '=IFERROR(QUERY(\'' + SHEET_DATA + '\'!$A$2:$' + lastL + ',"select ' + sel + ' where ' + where + '&" order by ' + L('วันที่') + ' desc",0),"ไม่พบรายการตามเงื่อนไขที่เลือก")');
   sh.getRange('A12:C340').setHorizontalAlignment('center');
