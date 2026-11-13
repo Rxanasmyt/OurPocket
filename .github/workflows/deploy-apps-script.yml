@@ -1,0 +1,77 @@
+# Deploy Code.gs ไปยัง Google Apps Script อัตโนมัติ (URL Web App เดิมไม่เปลี่ยน)
+# ตั้งค่าครั้งเดียวตาม DEPLOY.md  ถ้ายังไม่ตั้ง Secret ครบ ขั้นตอน Deploy จะข้ามไปเองโดยไม่ทำให้ workflow ล้ม
+name: Deploy Apps Script
+
+on:
+  push:
+    paths:
+      - 'Code.gs'
+      - 'appsscript.json'
+      - '.github/workflows/deploy-apps-script.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-apps-script
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+      SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+      DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+      WEBAPP_URL: ${{ secrets.WEBAPP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test the sheet script first
+        run: |
+          npm install --no-save --no-audit --no-fund hyperformula@2.7.1
+          node tests/gas/test-sheet.js
+          node tests/gas/test-formulas.js
+
+      - name: Check deploy secrets
+        id: secrets
+        run: |
+          if [ -n "$CLASPRC_JSON" ] && [ -n "$SCRIPT_ID" ] && [ -n "$DEPLOYMENT_ID" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ยังไม่ได้ตั้ง Secret ครบ (CLASPRC_JSON, SCRIPT_ID, DEPLOYMENT_ID) จึงข้ามการ Deploy อัตโนมัติ ดูขั้นตอนใน DEPLOY.md"
+          fi
+
+      - name: Build the Apps Script folder
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          mkdir -p build
+          cp Code.gs appsscript.json build/
+          printf '{"scriptId":"%s","rootDir":"build"}' "$SCRIPT_ID" > .clasp.json
+
+      - name: Push and deploy (same Web App URL)
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          npx --yes @google/clasp@2.4.2 push --force
+          npx --yes @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID" --description "auto ${GITHUB_SHA::7}"
+          rm -f "$HOME/.clasprc.json" .clasp.json
+
+      - name: Verify the live Web App
+        if: steps.secrets.outputs.ready == 'true' && env.WEBAPP_URL != ''
+        run: |
+          expected=$(grep -oE "API_VERSION = [0-9]+" Code.gs | grep -oE "[0-9]+")
+          for i in 1 2 3 4 5; do
+            body=$(curl -sL --max-time 30 "$WEBAPP_URL" || true)
+            if echo "$body" | grep -q "Our Wallet script v$expected"; then echo "Web App is live: script v$expected"; exit 0; fi
+            sleep 10
+          done
+          echo "::warning::Deploy สำเร็จ แต่ตรวจ Web App ไม่เจอข้อความ 'Our Wallet script v$expected' ลองเปิด URL ดูเอง"

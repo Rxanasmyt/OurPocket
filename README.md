@@ -33,3 +33,6 @@ npm run test:advanced # ทดสอบท่าทางขั้นสูง (
 npm run test:graphics # ทดสอบกราฟิกแดชบอร์ด ไอคอน สวิตช์ โหมดซ่อนตัวเลข
 npm run test:features # ทดสอบกรอกเร็ว (ชิป), ปัดแถว+เลิกทำ, เส้นแนวโน้ม, ฉลองจ่ายครบ, ปุ่มลอย
 ```
+
+## Deploy Code.gs อัตโนมัติ
+ดูขั้นตอนตั้งค่าครั้งเดียวใน [DEPLOY.md](DEPLOY.md) หลังตั้งแล้ว ทุกครั้งที่ `Code.gs` เปลี่ยน GitHub จะรันเทสต์และ Deploy เข้า Apps Script ให้เอง (URL เดิม)

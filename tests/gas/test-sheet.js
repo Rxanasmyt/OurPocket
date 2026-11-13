@@ -233,5 +233,11 @@ ok(mg.ss.getSheetByName('_ลบแล้ว') && mg.sheets.length >= 6, 'delete
 const names2 = mg.sheets.map((x) => x.name).filter((n) => n !== '_ลบแล้ว');
 ok(JSON.stringify(names2) === JSON.stringify(['สรุป', 'ลำดับจ่าย', 'รายเดือน', 'ค้นหา', 'รายการ', 'ตั้งค่า']), 'visible tabs unchanged');
 
+console.log('== auto-deploy files ==');
+const manifest = JSON.parse(require('fs').readFileSync(__dirname + '/../../appsscript.json', 'utf8'));
+ok(manifest.timeZone === 'Asia/Bangkok' && manifest.webapp.executeAs === 'USER_DEPLOYING' && manifest.webapp.access === 'ANYONE_ANONYMOUS', 'appsscript.json: runs as the owner, anyone can call, Bangkok time');
+const wf = require('fs').readFileSync(__dirname + '/../../.github/workflows/deploy-apps-script.yml', 'utf8');
+ok(wf.includes('test-sheet.js') && wf.includes('--deploymentId') && wf.includes('CLASPRC_JSON') && !/CLASPRC_JSON: *['"]?[A-Za-z0-9{]/.test(wf.replace('${{ secrets.CLASPRC_JSON }}', '')), 'workflow tests first, deploys to the existing deployment, secrets only via secrets.*');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
